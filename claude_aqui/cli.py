@@ -62,12 +62,12 @@ def _toggle(ctx: Context, target: str, enabled: bool) -> int:
 
 def _gui() -> int:
     try:
-        from . import gui
+        from .gui import run
     except ImportError:
         print("A interface gráfica não está disponível; use --status, --enable ou --disable.",
               file=sys.stderr)
         return 1
-    return gui.run() or 0
+    return run() or 0
 
 
 def main(argv: list[str] | None = None) -> int:
