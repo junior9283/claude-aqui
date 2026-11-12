@@ -43,6 +43,10 @@ lançador mostra um aviso em vez de falhar em silêncio.
 
 ## Instalação
 
+Baixe o `.deb`, `.rpm` ou pacote Arch em [Releases](https://github.com/junior9283/claude-aqui/releases/latest) (página do app: https://junior9283.github.io/claude-aqui/).
+
+Para gerar os pacotes você mesmo:
+
 Pelos pacotes (veja `packaging/`):
 
     make deb                          # dist/claude-aqui_VERSÃO_all.deb (precisa de dpkg-deb)

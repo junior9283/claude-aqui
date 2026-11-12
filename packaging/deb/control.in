@@ -1,7 +1,8 @@
 Package: claude-aqui
 Version: @VERSION@
 Architecture: all
-Maintainer: Claude Aqui <noreply@example.invalid>
+Maintainer: Claude Aqui <https://github.com/junior9283/claude-aqui>
+Homepage: https://github.com/junior9283/claude-aqui
 Section: utils
 Priority: optional
 Depends: python3 (>= 3.9), python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1

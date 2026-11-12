@@ -1,0 +1,49 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y python3-pytest python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 xvfb
+      - run: xvfb-run -a python3 -m pytest -q
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Versão
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+      - name: tarball e .deb
+        run: |
+          sudo apt-get update && sudo apt-get install -y dpkg-dev
+          [ "$GITHUB_REF_TYPE" = tag ] || VERSION=0.0.0-dev
+          make deb dist VERSION="$VERSION"
+      - name: .rpm (Fedora)
+        run: |
+          [ "$GITHUB_REF_TYPE" = tag ] || VERSION=0.0.0-dev
+          docker run --rm -v "$PWD":/w -w /w fedora:latest sh -c \
+            "dnf -y -q install make rpm-build >/dev/null && make rpm VERSION=$VERSION"
+          sudo chown -R "$USER" dist build
+      - name: Pacote Arch
+        run: |
+          [ "$GITHUB_REF_TYPE" = tag ] || VERSION=0.0.0-dev
+          make arch-src VERSION="$VERSION"
+          docker run --rm -v "$PWD/build/arch":/w archlinux:latest sh -c \
+            "pacman -Sy --noconfirm --needed make fakeroot binutils debugedit >/dev/null &&
+             useradd -m b && chown -R b /w && su b -c 'cd /w && makepkg -f --nodeps' &&
+             chmod -R a+rwX /w"
+          cp build/arch/*.pkg.tar.zst dist/
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with: { name: pacotes, path: dist/* }
+      - name: Publica a release
+        if: github.ref_type == 'tag'
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "Claude Aqui $GITHUB_REF_NAME" --generate-notes

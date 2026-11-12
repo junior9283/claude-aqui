@@ -1,4 +1,5 @@
-# Maintainer: Claude Aqui
+# Maintainer: Claude Aqui <https://github.com/junior9283/claude-aqui>
+url='https://github.com/junior9283/claude-aqui'
 pkgname=claude-aqui
 pkgver=0.1.0
 pkgrel=1

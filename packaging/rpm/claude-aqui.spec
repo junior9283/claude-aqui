@@ -7,6 +7,7 @@ Version:        %{version}
 Release:        1%{?dist}
 Summary:        Abre o Claude Code a partir do menu do gerenciador de arquivos
 License:        MIT
+URL:            https://github.com/junior9283/claude-aqui
 BuildArch:      noarch
 Source0:        %{name}-%{version}.tar.gz
 
@@ -45,5 +46,5 @@ make install DESTDIR="%{buildroot}" PREFIX=%{_prefix}
 %{_datadir}/icons/hicolor/scalable/apps/claude-aqui.svg
 
 %changelog
-* Thu Nov 12 2026 Claude Aqui <noreply@example.invalid> - 0.1.0-1
+* Thu Nov 12 2026 Claude Aqui <https://github.com/junior9283/claude-aqui> - 0.1.0-1
 - Primeiro pacote

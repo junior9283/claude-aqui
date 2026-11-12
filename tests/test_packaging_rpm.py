@@ -78,5 +78,5 @@ def test_ramo_opensuse_usa_typelibs(tmp_path):
 def test_contato_do_mantenedor_unificado():
     spec = (ROOT / "packaging/rpm/claude-aqui.spec").read_text(encoding="utf-8")
     control = (ROOT / "packaging/deb/control.in").read_text(encoding="utf-8")
-    assert "Claude Aqui <noreply@example.invalid>" in spec
-    assert "Claude Aqui <noreply@example.invalid>" in control
+    assert "Claude Aqui <https://github.com/junior9283/claude-aqui>" in spec
+    assert "Claude Aqui <https://github.com/junior9283/claude-aqui>" in control
