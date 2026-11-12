@@ -35,7 +35,7 @@ jobs:
           [ "$GITHUB_REF_TYPE" = tag ] || VERSION=0.0.0-dev
           make arch-src VERSION="$VERSION"
           docker run --rm -v "$PWD/build/arch":/w archlinux:latest sh -c \
-            "pacman -Sy --noconfirm --needed make fakeroot binutils debugedit >/dev/null &&
+            "pacman -Syu --noconfirm --needed make fakeroot binutils debugedit >/dev/null &&
              useradd -m b && chown -R b /w && su b -c 'cd /w && makepkg -f --nodeps' &&
              chmod -R a+rwX /w"
           cp build/arch/*.pkg.tar.zst dist/
