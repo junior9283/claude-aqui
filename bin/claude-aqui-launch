@@ -89,17 +89,31 @@ config_terminal() {
     sed -n 's/^terminal=[[:space:]]*\([^[:space:]]*\).*$/\1/p' "$f" | head -n 1
 }
 
-# Terminal padrão do desktop (GNOME via gsettings, KDE via kreadconfig); só
-# vale se for um id conhecido e instalado.
-desktop_terminal() {
-    t=
-    if have gsettings; then t=$(gsettings get org.gnome.desktop.default-applications.terminal exec 2>/dev/null)
-    elif have kreadconfig6; then t=$(kreadconfig6 --group General --key TerminalApplication 2>/dev/null)
-    elif have kreadconfig5; then t=$(kreadconfig5 --group General --key TerminalApplication 2>/dev/null)
+# Valor bruto do terminal padrão do GNOME (gsettings) ou do KDE (kreadconfig).
+gnome_terminal_value() {
+    have gsettings && gsettings get org.gnome.desktop.default-applications.terminal exec 2>/dev/null
+}
+kde_terminal_value() {
+    if have kreadconfig6; then kreadconfig6 --group General --key TerminalApplication 2>/dev/null
+    elif have kreadconfig5; then kreadconfig5 --group General --key TerminalApplication 2>/dev/null
     fi
-    t=$(printf '%s' "$t" | tr -d "'\"")
-    t=${t##*/}
-    case " $TERMINALS " in *" $t "*) have "$t" && printf '%s\n' "$t" ;; esac
+}
+
+# Terminal padrão do desktop; só vale se for um id conhecido e instalado. No KDE
+# consulta o kreadconfig primeiro, nos demais o gsettings; se o primeiro vier
+# vazio/ausente (ou inutilizável), tenta o outro.
+desktop_terminal() {
+    case ${XDG_CURRENT_DESKTOP:-} in
+        *[Kk][Dd][Ee]*) sources="kde gnome" ;;
+        *) sources="gnome kde" ;;
+    esac
+    for src in $sources; do
+        t=$("${src}_terminal_value")
+        t=$(printf '%s' "$t" | tr -d "'\"")
+        t=${t##*/}
+        case " $TERMINALS " in *" $t "*) have "$t" && { printf '%s\n' "$t"; return 0; } ;; esac
+    done
+    return 0
 }
 
 resolve_terminal() {

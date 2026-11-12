@@ -440,3 +440,37 @@ def test_state_dir_is_cleaned_up(launcher_env, tmp_path):
     folder.mkdir()
     run(env, str(folder), extra_env={"TMPDIR": str(tmp)})
     assert list(tmp.iterdir()) == []
+
+
+# ---------- terminal do desktop conforme XDG_CURRENT_DESKTOP (item 13) ----------
+
+def test_kde_desktop_prefers_kreadconfig_over_gsettings(launcher_env):
+    env, fakebin, log = launcher_env
+    make_fake_terminal(fakebin, log, "konsole")
+    make_fake_terminal(fakebin, log, "kitty")
+    make_fake_desktop_tool(fakebin, "gsettings", "'kitty'")
+    make_fake_desktop_tool(fakebin, "kreadconfig6", "konsole")
+    r = run(env, "--resolve-terminal", extra_env={"XDG_CURRENT_DESKTOP": "KDE"})
+    assert r.stdout.strip() == "konsole"
+    r = run(env, "--resolve-terminal", extra_env={"XDG_CURRENT_DESKTOP": "GNOME"})
+    assert r.stdout.strip() == "kitty"
+
+
+def test_kde_falls_back_to_gsettings_when_kreadconfig_is_empty(launcher_env):
+    env, fakebin, log = launcher_env
+    make_fake_terminal(fakebin, log, "konsole")
+    make_fake_terminal(fakebin, log, "kitty")
+    make_fake_desktop_tool(fakebin, "gsettings", "'kitty'")
+    make_fake_desktop_tool(fakebin, "kreadconfig6", "")
+    r = run(env, "--resolve-terminal", extra_env={"XDG_CURRENT_DESKTOP": "KDE"})
+    assert r.stdout.strip() == "kitty"
+
+
+def test_gnome_falls_back_to_kreadconfig_when_gsettings_is_empty(launcher_env):
+    env, fakebin, log = launcher_env
+    make_fake_terminal(fakebin, log, "konsole")
+    make_fake_terminal(fakebin, log, "gnome-terminal")
+    make_fake_desktop_tool(fakebin, "gsettings", "")
+    make_fake_desktop_tool(fakebin, "kreadconfig5", "konsole")
+    r = run(env, "--resolve-terminal", extra_env={"XDG_CURRENT_DESKTOP": "GNOME"})
+    assert r.stdout.strip() == "konsole"
