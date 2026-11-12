@@ -134,3 +134,38 @@ def test_cli_remove_all_mentions_kept_backup(env, capsys):
     capsys.readouterr()
     assert cli.main(["--remove-all"]) == 0
     assert "uca.xml.claude-aqui.bak" in capsys.readouterr().out
+
+
+def test_auto_enable_ativa_uma_vez_e_respeita_desativacao(env, capsys):
+    ctx, fakebin = env
+    write_executable(fakebin / "nautilus", "exit 0\n")
+    write_executable(fakebin / "thunar", "exit 0\n")
+    assert cli.main(["--auto-enable"]) == 0
+    st = statuses(ctx)
+    assert st["nautilus"] is Status.ENABLED and st["thunar"] is Status.ENABLED
+    assert st["dolphin"] is Status.NOT_INSTALLED
+    # o usuário desativa: a próxima sessão não liga de novo
+    assert cli.main(["--disable", "nautilus"]) == 0
+    assert cli.main(["--auto-enable"]) == 0
+    assert statuses(ctx)["nautilus"] is Status.DISABLED
+    # gerenciador instalado depois é ativado na vez seguinte
+    write_executable(fakebin / "dolphin", "exit 0\n")
+    assert cli.main(["--auto-enable"]) == 0
+    st = statuses(ctx)
+    assert st["dolphin"] is Status.ENABLED and st["nautilus"] is Status.DISABLED
+
+
+def test_auto_enable_nao_sobrescreve_conflito_e_remove_all_limpa_estado(env, capsys):
+    ctx, fakebin = env
+    write_executable(fakebin / "nautilus", "exit 0\n")
+    alheio = ctx.data_dir / "nautilus" / "scripts" / "Abrir Claude Code aqui"
+    alheio.parent.mkdir(parents=True)
+    alheio.write_text("#!/bin/sh\necho meu\n")
+    assert cli.main(["--auto-enable"]) == 0
+    assert alheio.read_text() == "#!/bin/sh\necho meu\n"
+    assert statuses(ctx)["nautilus"] is Status.CONFLICT
+    write_executable(fakebin / "thunar", "exit 0\n")
+    assert cli.main(["--auto-enable"]) == 0
+    assert (ctx.config_dir / "claude-aqui" / "auto-enabled").read_text().split() == ["thunar"]
+    assert cli.main(["--remove-all"]) == 0
+    assert not (ctx.config_dir / "claude-aqui").exists()

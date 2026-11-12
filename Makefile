@@ -6,6 +6,8 @@ DISTDIR ?= dist
 BINDIR = $(DESTDIR)$(PREFIX)/bin
 LIBDIR = $(DESTDIR)$(PREFIX)/lib/claude-aqui
 APPDIR = $(DESTDIR)$(PREFIX)/share/applications
+SYSCONFDIR ?= $(if $(filter /usr,$(PREFIX)),/etc,$(PREFIX)/etc)
+AUTOSTARTDIR = $(DESTDIR)$(SYSCONFDIR)/xdg/autostart
 ICONDIR = $(DESTDIR)$(PREFIX)/share/icons/hicolor/scalable/apps
 
 # escapa o valor para uso no lado de substituição do sed
@@ -18,7 +20,7 @@ PKG_FILES = $(shell find claude_aqui -name '*.py' | sort)
 .PHONY: install uninstall dist
 
 install:
-	install -d "$(BINDIR)" "$(LIBDIR)/claude_aqui/managers" "$(APPDIR)" "$(ICONDIR)"
+	install -d "$(BINDIR)" "$(LIBDIR)/claude_aqui/managers" "$(APPDIR)" "$(ICONDIR)" "$(AUTOSTARTDIR)"
 	install -m 755 bin/claude-aqui-launch "$(BINDIR)/claude-aqui-launch"
 	install -m 755 bin/claude-aqui "$(BINDIR)/claude-aqui"
 	sed -i 's|^LIB_DIR = .*|LIB_DIR = "$(INST_LIB)"|' "$(BINDIR)/claude-aqui"
@@ -26,10 +28,12 @@ install:
 	sed -i 's|^DEFAULT_LAUNCHER = .*|DEFAULT_LAUNCHER = "$(INST_LAUNCHER)"|' "$(LIBDIR)/claude_aqui/base.py"
 	install -m 644 data/claude-aqui.desktop "$(APPDIR)/claude-aqui.desktop"
 	install -m 644 data/claude-aqui.svg "$(ICONDIR)/claude-aqui.svg"
+	install -m 644 data/claude-aqui-autoenable.desktop "$(AUTOSTARTDIR)/claude-aqui-autoenable.desktop"
 
 uninstall:
 	rm -f "$(BINDIR)/claude-aqui" "$(BINDIR)/claude-aqui-launch" \
-		"$(APPDIR)/claude-aqui.desktop" "$(ICONDIR)/claude-aqui.svg"
+		"$(APPDIR)/claude-aqui.desktop" "$(ICONDIR)/claude-aqui.svg" \
+		"$(AUTOSTARTDIR)/claude-aqui-autoenable.desktop"
 	rm -rf "$(LIBDIR)"
 
 dist:

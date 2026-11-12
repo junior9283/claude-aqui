@@ -44,6 +44,7 @@ make install DESTDIR="%{buildroot}" PREFIX=%{_prefix}
 %{_prefix}/lib/claude-aqui
 %{_datadir}/applications/claude-aqui.desktop
 %{_datadir}/icons/hicolor/scalable/apps/claude-aqui.svg
+%config(noreplace) /etc/xdg/autostart/claude-aqui-autoenable.desktop
 
 %changelog
 * Thu Nov 12 2026 Claude Aqui <https://github.com/junior9283/claude-aqui> - 0.1.0-1

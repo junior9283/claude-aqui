@@ -25,6 +25,8 @@ def _parser() -> argparse.ArgumentParser:
     g.add_argument("--status", action="store_true", help="mostra o estado de cada gerenciador")
     g.add_argument("--enable", metavar="ID|all", help="ativa o item de menu")
     g.add_argument("--disable", metavar="ID|all", help="desativa o item de menu")
+    g.add_argument("--auto-enable", action="store_true",
+                   help="ativa uma vez os gerenciadores instalados (usado no início da sessão)")
     g.add_argument("--remove-all", action="store_true", help="remove tudo que o app criou")
     return p
 
@@ -79,6 +81,10 @@ def main(argv: list[str] | None = None) -> int:
         return _toggle(ctx, args.enable, True)
     if args.disable:
         return _toggle(ctx, args.disable, False)
+    if args.auto_enable:
+        for name in service.auto_enable(ctx):
+            print(f"{name}: ativado.")
+        return 0
     if args.remove_all:
         report = service.remove_all(ctx)
         print(report.summary(), file=sys.stdout if report.ok else sys.stderr)

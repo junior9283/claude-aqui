@@ -77,6 +77,8 @@ Abra **Claude Aqui** no menu de aplicativos e ative os gerenciadores desejados, 
     claude-aqui --disable ID|all    # desativa o item de menu
     claude-aqui --remove-all        # remove tudo que o app criou (sai com 1 e lista o que não pôde ser removido)
 
+`claude-aqui --auto-enable` é chamado no início de cada sessão por um autostart em `/etc/xdg/autostart`: ativa uma única vez cada gerenciador instalado (quem desativar não o vê ligado de novo; conflitos são pulados).
+
 Sem argumentos abre a interface gráfica.
 
 ## Desinstalar

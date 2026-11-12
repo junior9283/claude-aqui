@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import launcher
-from .base import ConflictError, Context, FileManager, Status, is_managed
+from .base import ConflictError, Context, FileManager, Status, atomic_write, is_managed
 from .config import load_terminal, save_terminal
 from .managers import all_managers
 
@@ -77,6 +77,36 @@ def set_terminal(ctx: Context, terminal: str | None) -> None:
     save_terminal(ctx, terminal)
 
 
+def _auto_state(ctx: Context) -> Path:
+    return ctx.config_dir / "claude-aqui" / "auto-enabled"
+
+
+def auto_enable(ctx: Context) -> list[str]:
+    """Ativa, uma única vez por gerenciador, os instalados que ainda não foram tratados.
+
+    Os ids já tratados ficam em auto-enabled: quem desativar um gerenciador depois não o
+    verá ligado de novo. Gerenciadores instalados mais tarde são ativados na vez seguinte.
+    Conflitos não bloqueiam os demais nem são marcados como tratados.
+    """
+    try:
+        done = set(_auto_state(ctx).read_text(encoding="utf-8").split())
+    except OSError:
+        done = set()
+    enabled: list[str] = []
+    for manager in all_managers(ctx):
+        if manager.id in done or not manager.is_installed():
+            continue
+        try:
+            manager.enable()
+        except (ConflictError, OSError):
+            continue
+        done.add(manager.id)
+        enabled.append(manager.name)
+    if enabled:
+        atomic_write(_auto_state(ctx), "\n".join(sorted(done)) + "\n", 0o644)
+    return enabled
+
+
 @dataclass
 class RemoveReport:
     failed: list[str] = field(default_factory=list)  # "caminho: motivo" do que não saiu
@@ -113,7 +143,7 @@ def remove_all(ctx: Context) -> RemoveReport:
     app_config = ctx.config_dir / "claude-aqui"
     # O stub só sai se tiver a nossa marca; o arquivo de config não tem marca,
     # mas o caminho é exclusivamente nosso.
-    for path in (ctx.stub_path, app_config / "config"):
+    for path in (ctx.stub_path, app_config / "config", _auto_state(ctx)):
         try:
             if path != ctx.stub_path or is_managed(path):
                 path.unlink(missing_ok=True)

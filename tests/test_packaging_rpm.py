@@ -37,8 +37,9 @@ def test_lista_de_arquivos(rpm_file):
         "/usr/share/applications/claude-aqui.desktop",
         "/usr/share/icons/hicolor/scalable/apps/claude-aqui.svg",
         "/usr/lib/claude-aqui/claude_aqui/base.py",
+        "/etc/xdg/autostart/claude-aqui-autoenable.desktop",
     } <= listed
-    assert all(p.startswith(("/usr/bin/", "/usr/lib/claude-aqui", "/usr/share/"))
+    assert all(p.startswith(("/usr/bin/", "/usr/lib/claude-aqui", "/usr/share/", "/etc/xdg/autostart/"))
                for p in listed)
     assert not any("__pycache__" in p for p in listed)
 

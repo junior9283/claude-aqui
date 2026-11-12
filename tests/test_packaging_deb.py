@@ -49,6 +49,7 @@ def test_contents(deb):
     paths = {l.split()[-1].removeprefix("./") for l in lines if not l.startswith("d")}
     for p in (*EXECUTABLES,
               "usr/share/applications/claude-aqui.desktop",
+              "etc/xdg/autostart/claude-aqui-autoenable.desktop",
               "usr/share/icons/hicolor/scalable/apps/claude-aqui.svg",
               "usr/lib/claude-aqui/claude_aqui/cli.py"):
         assert p in paths, p

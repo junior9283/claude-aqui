@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Claude Aqui (ativação automática)
+Comment=Ativa o item "Abrir Claude Code aqui" nos gerenciadores de arquivos instalados
+Exec=claude-aqui --auto-enable
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-Phase=Application
