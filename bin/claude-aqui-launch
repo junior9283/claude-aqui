@@ -15,10 +15,13 @@ NL='
 '
 TITLE="Claude Aqui"
 # Terminais com flags confirmados (--help/man). Ordem = prioridade automática.
-TERMINALS="gnome-terminal konsole kitty alacritty xfce4-terminal xterm"
+TERMINALS="gnome-terminal konsole kitty alacritty xfce4-terminal mate-terminal foot tilix terminator lxterminal qterminal xterm"
 
 # Prefixo dos locais absolutos do claude (vazio em produção; os testes o trocam).
 ROOT=${CLAUDE_AQUI_ROOT:-}
+
+# Aspas simples para o shell (só para o caminho do próprio lançador, nunca para a pasta).
+shq() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
@@ -212,6 +215,16 @@ open_terminal() {
         kitty)             run_terminal kitty --directory "$dir" "$self" --run "$dir" ;;
         alacritty)         run_terminal alacritty --working-directory "$dir" -e "$self" --run "$dir" ;;
         xfce4-terminal)    run_terminal xfce4-terminal "--working-directory=$dir" -x "$self" --run "$dir" ;;
+        mate-terminal)     run_terminal mate-terminal "--working-directory=$dir" -x "$self" --run "$dir" ;;
+        foot)              run_terminal foot -D "$dir" "$self" --run "$dir" ;;
+        # terminator -x e lxterminal -e repartem o argv corretamente, mas a pasta
+        # vai só pelo flag de diretório; --run usa o cwd herdado.
+        terminator)        run_terminal terminator "--working-directory=$dir" -x "$self" --run ;;
+        lxterminal)        run_terminal lxterminal "--working-directory=$dir" -e "$self" --run ;;
+        # -e recebe uma única string que o terminal reparte: só o lançador (entre
+        # aspas) vai nela; a pasta vai pelo flag de diretório e pelo cwd herdado.
+        tilix)             run_terminal tilix "--working-directory=$dir" -e "$(shq "$self") --run" ;;
+        qterminal)         run_terminal qterminal -w "$dir" -e "$(shq "$self") --run" ;;
         # Sem flags de lista confiáveis (o -e pode juntar o argv numa string de
         # shell): o caminho NÃO vai como argumento; --run usa o cwd herdado.
         x-terminal-emulator|xterm) run_terminal "$term" -e "$self" --run ;;

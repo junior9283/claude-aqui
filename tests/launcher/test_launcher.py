@@ -598,3 +598,83 @@ def test_state_dir_falls_back_to_tmpdir_without_xdg_runtime_dir(launcher_env, tm
     r = run(env, str(folder), extra_env={"TMPDIR": str(tmpd), "XDG_RUNTIME_DIR": str(tmp_path / "nao-existe")})
     assert r.returncode == 0, r.stderr
     assert f"STATE<{tmpd}/claude-aqui." in log.read_text()
+
+
+# ---------- terminais acrescentados (item 3) ----------
+# Flags confirmados com --help e execução em contêiner Fedora (veja final-fix-report.md).
+
+NEW_TERMINALS = [
+    # (id, argumentos esperados antes de --run, o caminho também vai no argv?)
+    ("mate-terminal", ["--working-directory={d}", "-x"], True),
+    ("foot", ["-D", "{d}"], True),
+    ("terminator", ["--working-directory={d}", "-x"], False),
+    ("lxterminal", ["--working-directory={d}", "-e"], False),
+]
+STRING_E_TERMINALS = [
+    # -e recebe UMA string que o terminal reparte: o caminho nunca entra nela
+    ("tilix", ["--working-directory={d}", "-e"]),
+    ("qterminal", ["-w", "{d}", "-e"]),
+]
+
+
+@pytest.mark.parametrize("term,expected,path_in_argv", NEW_TERMINALS, ids=[t[0] for t in NEW_TERMINALS])
+def test_new_terminal_flags(launcher_env, tmp_path, term, expected, path_in_argv):
+    env, fakebin, log = launcher_env
+    make_fake_terminal(fakebin, log, term)
+    folder = tmp_path / "pasta com 'aspas' $x"
+    folder.mkdir()
+    r = run(env, str(folder))
+    assert r.returncode == 0, r.stderr
+    args = [l[4:-1] for l in log.read_text().splitlines() if l.startswith("ARG<")]
+    assert args[: len(expected)] == [e.format(d=folder) for e in expected]
+    assert args[-2:] == ["--run", str(folder)] if path_in_argv else args[-1] == "--run"
+    if not path_in_argv:
+        assert str(folder) not in args[len(expected):]
+    assert f"PWD<{folder}>" in log.read_text()
+
+
+@pytest.mark.parametrize("term,expected", STRING_E_TERMINALS, ids=[t[0] for t in STRING_E_TERMINALS])
+def test_string_e_terminal_gets_single_quoted_command_without_folder(launcher_env, tmp_path, term, expected):
+    env, fakebin, log = launcher_env
+    make_fake_terminal(fakebin, log, term)
+    folder = tmp_path / "pasta"
+    folder.mkdir()
+    r = run(env, str(folder))
+    assert r.returncode == 0, r.stderr
+    args = [l[4:-1] for l in log.read_text().splitlines() if l.startswith("ARG<")]
+    assert args[: len(expected)] == [e.format(d=folder) for e in expected]
+    command = args[len(expected)]
+    assert command == f"'{LAUNCHER}' --run" and len(args) == len(expected) + 1
+    assert str(folder) not in command
+
+
+@pytest.mark.parametrize("term", [t[0] for t in STRING_E_TERMINALS])
+@pytest.mark.parametrize("name", HOSTILE, ids=lambda n: repr(n))
+def test_string_e_terminals_run_inner_with_hostile_folder_and_spaced_launcher(launcher_env, tmp_path, term, name):
+    """O terminal reparte a string do -e como o shell: lançador com espaço e apóstrofo no caminho."""
+    env, fakebin, log = launcher_env
+    safe_bin = tmp_path / "bin com 'aspas'"
+    safe_bin.mkdir()
+    launcher = safe_bin / "claude-aqui-launch"
+    launcher.write_bytes(LAUNCHER.read_bytes())
+    launcher.chmod(0o755)
+    # terminal falso: roda o valor de -e via sh -c, como um terminal que junta/reparte a string
+    write_executable(fakebin / term, 'while [ "$1" != "-e" ]; do shift; done; sh -c "$2"\n')
+    make_fake_claude(tmp_path / "home" / ".local" / "bin" / "claude", log)
+    base = tmp_path / "work"
+    base.mkdir()
+    folder = base / name
+    folder.mkdir()
+    r = subprocess.run(["/bin/sh", str(launcher), str(folder)], env=env, cwd=base,
+                       capture_output=True, text=True, timeout=20)
+    assert r.returncode == 0, r.stderr
+    assert f"CLAUDE<{folder}>\n" in log.read_text()
+    assert not (base / "X").exists() and not (folder / "X").exists()
+
+
+def test_new_terminals_are_listed_when_installed(launcher_env):
+    env, fakebin, log = launcher_env
+    for t, *_ in NEW_TERMINALS + STRING_E_TERMINALS:
+        make_fake_terminal(fakebin, log, t)
+    assert set(run(env, "--list-terminals").stdout.split()) == {
+        t for t, *_ in NEW_TERMINALS + STRING_E_TERMINALS}
