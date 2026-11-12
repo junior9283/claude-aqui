@@ -32,6 +32,7 @@ def launcher_env(tmp_path):
         "HOME": str(home),
         "XDG_CONFIG_HOME": str(home / ".config"),
         "LANG": "C.UTF-8",
+        "CLAUDE_AQUI_ROOT": str(tmp_path / "root"),
     }
     return env, fakebin, log
 

@@ -16,6 +16,9 @@ TITLE="Claude Aqui"
 # Terminais com flags confirmados (--help/man). Ordem = prioridade automática.
 TERMINALS="gnome-terminal konsole kitty alacritty xfce4-terminal xterm"
 
+# Prefixo dos locais absolutos do claude (vazio em produção; os testes o trocam).
+ROOT=${CLAUDE_AQUI_ROOT:-}
+
 have() { command -v "$1" >/dev/null 2>&1; }
 
 # Erro ao usuário: notify-send, depois zenity/kdialog, depois stderr. Sai com 1.
@@ -69,7 +72,7 @@ find_claude() {
     case $c in /*) [ -x "$c" ] && { printf '%s\n' "$c"; return 0; } ;; esac
     for c in "$HOME/.local/bin/claude" "$HOME/.npm-global/bin/claude" "$HOME/.claude/local/claude" \
              "$HOME/.bun/bin/claude" "$HOME/.volta/bin/claude" "$HOME"/.nvm/versions/node/*/bin/claude \
-             "${NPM_CONFIG_PREFIX:-/nonexistent}/bin/claude" /usr/local/bin/claude /opt/homebrew/bin/claude; do
+             "${NPM_CONFIG_PREFIX:-/nonexistent}/bin/claude" "$ROOT"/usr/bin/claude "$ROOT"/usr/local/bin/claude "$ROOT"/opt/homebrew/bin/claude; do
         if [ -f "$c" ] && [ -x "$c" ]; then printf '%s\n' "$c"; return 0; fi
     done
     return 1
@@ -86,6 +89,19 @@ config_terminal() {
     sed -n 's/^terminal=[[:space:]]*\([^[:space:]]*\).*$/\1/p' "$f" | head -n 1
 }
 
+# Terminal padrão do desktop (GNOME via gsettings, KDE via kreadconfig); só
+# vale se for um id conhecido e instalado.
+desktop_terminal() {
+    t=
+    if have gsettings; then t=$(gsettings get org.gnome.desktop.default-applications.terminal exec 2>/dev/null)
+    elif have kreadconfig6; then t=$(kreadconfig6 --group General --key TerminalApplication 2>/dev/null)
+    elif have kreadconfig5; then t=$(kreadconfig5 --group General --key TerminalApplication 2>/dev/null)
+    fi
+    t=$(printf '%s' "$t" | tr -d "'\"")
+    t=${t##*/}
+    case " $TERMINALS " in *" $t "*) have "$t" && printf '%s\n' "$t" ;; esac
+}
+
 resolve_terminal() {
     all="xdg-terminal-exec x-terminal-emulator $TERMINALS"
     cfg=$(config_terminal)
@@ -97,7 +113,12 @@ resolve_terminal() {
             *) echo "Aviso: o terminal configurado ($cfg) não é compatível; usando o automático." >&2 ;;
         esac
     fi
-    for t in $all; do
+    for t in xdg-terminal-exec x-terminal-emulator; do
+        if have "$t"; then printf '%s\n' "$t"; return 0; fi
+    done
+    t=$(desktop_terminal)
+    if [ -n "$t" ]; then printf '%s\n' "$t"; return 0; fi
+    for t in $TERMINALS; do
         if have "$t"; then printf '%s\n' "$t"; return 0; fi
     done
     return 1
@@ -106,7 +127,7 @@ resolve_terminal() {
 # Modo interno: roda dentro do terminal.
 run_inside() {
     pause() { printf '\n%s' "Pressione Enter para fechar..."; IFS= read -r _ || :; exit 1; }
-    dir=$(absolute_dir "$1") || { printf '%s\n' "Selecione uma pasta."; pause; }
+    dir=$(absolute_dir "${1:-$PWD}") || { printf '%s\n' "Selecione uma pasta."; pause; }
     cd -- "$dir" || { printf '%s\n' "Selecione uma pasta."; pause; }
     claude=$(find_claude) || {
         printf '%s\n' "O Claude Code não foi encontrado. Instale-o (https://claude.com/claude-code) e tente de novo."
@@ -129,8 +150,10 @@ open_terminal() {
         kitty)             exec kitty --directory "$dir" "$self" --run "$dir" ;;
         alacritty)         exec alacritty --working-directory "$dir" -e "$self" --run "$dir" ;;
         xfce4-terminal)    exec xfce4-terminal "--working-directory=$dir" -x "$self" --run "$dir" ;;
-        x-terminal-emulator|xterm) exec "$term" -e "$self" --run "$dir" ;;
-        xdg-terminal-exec) exec xdg-terminal-exec "$self" --run "$dir" ;;
+        # Sem flags de lista confiáveis (o -e pode juntar o argv numa string de
+        # shell): o caminho NÃO vai como argumento; --run usa o cwd herdado.
+        x-terminal-emulator|xterm) exec "$term" -e "$self" --run ;;
+        xdg-terminal-exec) exec xdg-terminal-exec "$self" --run ;;
     esac
 }
 

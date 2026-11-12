@@ -2,7 +2,7 @@ import subprocess
 
 import pytest
 
-from conftest import LAUNCHER, make_fake_claude, make_fake_terminal
+from conftest import LAUNCHER, make_fake_claude, make_fake_terminal, write_executable
 
 
 def run(env, *args, extra_env=None, stdin="", cwd=None):
@@ -29,13 +29,14 @@ HOSTILE = [
     "a\\nb",
     "100%25",
     "%41",
+    "-rf",
 ]
 
 
 @pytest.mark.parametrize("name", HOSTILE, ids=lambda n: repr(n))
 def test_hostile_path_arrives_intact(launcher_env, tmp_path, name):
     env, fakebin, log = launcher_env
-    make_fake_terminal(fakebin, log, "xterm")
+    make_fake_terminal(fakebin, log, "kitty")
     base = tmp_path / "work"
     base.mkdir()
     folder = base / name
@@ -53,7 +54,7 @@ def test_hostile_path_arrives_intact(launcher_env, tmp_path, name):
 
 def test_file_uri_is_decoded(launcher_env, tmp_path):
     env, fakebin, log = launcher_env
-    make_fake_terminal(fakebin, log, "xterm")
+    make_fake_terminal(fakebin, log, "kitty")
     folder = tmp_path / "x" / "a b"
     folder.mkdir(parents=True)
     r = run(env, f"file://{tmp_path}/x/a%20b")
@@ -61,9 +62,20 @@ def test_file_uri_is_decoded(launcher_env, tmp_path):
     assert f"ARG<{folder}>\n" in log.read_text()
 
 
+@pytest.mark.parametrize("encoded,name", [("100%2525", "100%25"), ("%2541", "%41"), ("%41", "A")])
+def test_file_uri_percent_edge_cases(launcher_env, tmp_path, encoded, name):
+    env, fakebin, log = launcher_env
+    make_fake_terminal(fakebin, log, "kitty")
+    folder = tmp_path / name
+    folder.mkdir()
+    r = run(env, f"file://{tmp_path}/{encoded}")
+    assert r.returncode == 0, r.stderr
+    assert f"ARG<{folder}>\n" in log.read_text()
+
+
 def test_file_uri_decodes_utf8(launcher_env, tmp_path):
     env, fakebin, log = launcher_env
-    make_fake_terminal(fakebin, log, "xterm")
+    make_fake_terminal(fakebin, log, "kitty")
     folder = tmp_path / "ação"
     folder.mkdir()
     r = run(env, f"file://{tmp_path}/a%C3%A7%C3%A3o")
@@ -73,7 +85,7 @@ def test_file_uri_decodes_utf8(launcher_env, tmp_path):
 
 def test_nautilus_env_first_selected_path_is_used(launcher_env, tmp_path):
     env, fakebin, log = launcher_env
-    make_fake_terminal(fakebin, log, "xterm")
+    make_fake_terminal(fakebin, log, "kitty")
     first = tmp_path / "primeira"
     second = tmp_path / "segunda"
     first.mkdir()
@@ -87,7 +99,7 @@ def test_nautilus_env_first_selected_path_is_used(launcher_env, tmp_path):
 
 def test_caja_env_is_used(launcher_env, tmp_path):
     env, fakebin, log = launcher_env
-    make_fake_terminal(fakebin, log, "xterm")
+    make_fake_terminal(fakebin, log, "kitty")
     folder = tmp_path / "caja"
     folder.mkdir()
     r = run(env, extra_env={"CAJA_SCRIPT_SELECTED_FILE_PATHS": f"{folder}\n"})
@@ -97,7 +109,7 @@ def test_caja_env_is_used(launcher_env, tmp_path):
 
 def test_current_uri_used_when_no_selection(launcher_env, tmp_path):
     env, fakebin, log = launcher_env
-    make_fake_terminal(fakebin, log, "xterm")
+    make_fake_terminal(fakebin, log, "kitty")
     folder = tmp_path / "atual dir"
     folder.mkdir()
     r = run(
@@ -113,7 +125,7 @@ def test_current_uri_used_when_no_selection(launcher_env, tmp_path):
 
 def test_not_a_directory_shows_error_and_exits_1(launcher_env, tmp_path):
     env, fakebin, log = launcher_env
-    make_fake_terminal(fakebin, log, "xterm")
+    make_fake_terminal(fakebin, log, "kitty")
     f = tmp_path / "arquivo.txt"
     f.write_text("x")
     r = run(env, str(f))
@@ -140,7 +152,7 @@ def test_configured_terminal_is_used(launcher_env, tmp_path):
 
 def test_configured_terminal_uninstalled_falls_back_with_warning(launcher_env, tmp_path):
     env, fakebin, log = launcher_env
-    make_fake_terminal(fakebin, log, "xterm")
+    make_fake_terminal(fakebin, log, "alacritty")
     cfg = tmp_path / "home" / ".config" / "claude-aqui"
     cfg.mkdir(parents=True)
     (cfg / "config").write_text("terminal=kitty\n")
@@ -199,8 +211,8 @@ def test_generic_launchers_receive_command_as_arguments(launcher_env, tmp_path, 
     r = run(env, str(folder))
     assert r.returncode == 0, r.stderr
     content = log.read_text()
-    assert f"ARG<{folder}>\n" in content
     assert "ARG<--run>\n" in content
+    assert f"ARG<{folder}>" not in content
     assert f"PWD<{folder}>" in content
 
 
@@ -235,7 +247,10 @@ def test_terminal_flags(launcher_env, tmp_path, term, expected):
     assert r.returncode == 0, r.stderr
     args = [l[4:-1] for l in log.read_text().splitlines() if l.startswith("ARG<")]
     assert args[: len(expected)] == [e.format(d=folder) for e in expected]
-    assert args[-2:] == ["--run", str(folder)]
+    if term == "xterm":  # sem flags de lista confiáveis: o caminho não vai no argv
+        assert args[-1] == "--run" and str(folder) not in args
+    else:
+        assert args[-2:] == ["--run", str(folder)]
     assert f"PWD<{folder}>" in log.read_text()
 
 
@@ -280,3 +295,100 @@ def test_run_mode_missing_folder_prints_message(launcher_env, tmp_path):
     r = run(env, "--run", str(tmp_path / "nao-existe"), stdin="\n")
     assert "Selecione uma pasta." in r.stdout
     assert r.returncode == 1
+
+
+def make_fake_desktop_tool(fakebin, name, output):
+    write_executable(fakebin / name, f"printf '%s\\n' \"{output}\"\n")
+
+
+def test_desktop_gsettings_terminal_before_known_list(launcher_env):
+    env, fakebin, log = launcher_env
+    make_fake_terminal(fakebin, log, "gnome-terminal")
+    make_fake_terminal(fakebin, log, "kitty")
+    make_fake_desktop_tool(fakebin, "gsettings", "'kitty'")
+    assert run(env, "--resolve-terminal").stdout.strip() == "kitty"
+
+
+def test_desktop_kreadconfig_terminal(launcher_env):
+    env, fakebin, log = launcher_env
+    make_fake_terminal(fakebin, log, "gnome-terminal")
+    make_fake_terminal(fakebin, log, "alacritty")
+    make_fake_desktop_tool(fakebin, "kreadconfig6", "/usr/bin/alacritty")
+    assert run(env, "--resolve-terminal").stdout.strip() == "alacritty"
+
+
+def test_desktop_terminal_ignored_when_unknown_or_missing(launcher_env):
+    env, fakebin, log = launcher_env
+    make_fake_terminal(fakebin, log, "konsole")
+    make_fake_desktop_tool(fakebin, "gsettings", "'kitty'")  # não instalado
+    assert run(env, "--resolve-terminal").stdout.strip() == "konsole"
+    make_fake_desktop_tool(fakebin, "gsettings", "'rm -rf'")  # desconhecido
+    assert run(env, "--resolve-terminal").stdout.strip() == "konsole"
+
+
+def test_desktop_terminal_comes_after_generic_launchers(launcher_env):
+    env, fakebin, log = launcher_env
+    make_fake_terminal(fakebin, log, "kitty")
+    make_fake_terminal(fakebin, log, "x-terminal-emulator")
+    make_fake_desktop_tool(fakebin, "gsettings", "'kitty'")
+    assert run(env, "--resolve-terminal").stdout.strip() == "x-terminal-emulator"
+
+
+def test_find_claude_in_usr_bin_with_lean_path(launcher_env, tmp_path):
+    env, _, log = launcher_env
+    claude = tmp_path / "root" / "usr" / "bin" / "claude"
+    make_fake_claude(claude, log)
+    r = run(env, "--find-claude")
+    assert r.stdout.strip() == str(claude)
+
+
+@pytest.mark.parametrize("name", HOSTILE, ids=lambda n: repr(n))
+def test_run_mode_hostile_path(launcher_env, tmp_path, name):
+    env, _, log = launcher_env
+    make_fake_claude(tmp_path / "home" / ".local" / "bin" / "claude", log)
+    base = tmp_path / "work"
+    base.mkdir()
+    folder = base / name
+    folder.mkdir()
+    r = run(env, "--run", str(folder), cwd=base)
+    assert r.returncode == 0, r.stderr
+    assert f"CLAUDE<{folder}>\n" in log.read_text()
+    assert not (base / "X").exists()
+
+
+def test_run_mode_without_argument_uses_inherited_cwd(launcher_env, tmp_path):
+    env, _, log = launcher_env
+    make_fake_claude(tmp_path / "home" / ".local" / "bin" / "claude", log)
+    folder = tmp_path / "herdado"
+    folder.mkdir()
+    r = run(env, "--run", cwd=folder)
+    assert r.returncode == 0, r.stderr
+    assert f"CLAUDE<{folder}>\n" in log.read_text()
+
+
+@pytest.mark.parametrize("term", ["x-terminal-emulator", "xterm", "xdg-terminal-exec"])
+@pytest.mark.parametrize("name", HOSTILE, ids=lambda n: repr(n))
+def test_string_joining_terminal_cannot_reinterpret_path(launcher_env, tmp_path, term, name):
+    """Terminal que junta o argv numa string e roda via sh -c: o caminho não pode ir no argv."""
+    env, fakebin, log = launcher_env
+    # cópia do lançador em caminho sem espaços (o sh -c do terminal falso racha em espaços)
+    safe_bin = tmp_path / "safebin"
+    safe_bin.mkdir()
+    launcher = safe_bin / "claude-aqui-launch"
+    launcher.write_bytes(LAUNCHER.read_bytes())
+    launcher.chmod(0o755)
+    skip_e = '[ "$1" = "-e" ] && shift\n'
+    write_executable(fakebin / term, skip_e + 'sh -c "$*"\n')
+    make_fake_claude(tmp_path / "home" / ".local" / "bin" / "claude", log)
+    base = tmp_path / "work"
+    base.mkdir()
+    folder = base / name
+    folder.mkdir()
+    r = subprocess.run(
+        ["/bin/sh", str(launcher), str(folder)],
+        env=env, cwd=base, capture_output=True, text=True, timeout=20,
+    )
+    assert r.returncode == 0, r.stderr
+    assert f"CLAUDE<{folder}>\n" in log.read_text()
+    assert not (base / "X").exists()
+    assert not (folder / "X").exists()
