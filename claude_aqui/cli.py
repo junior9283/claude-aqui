@@ -80,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.disable:
         return _toggle(ctx, args.disable, False)
     if args.remove_all:
-        service.remove_all(ctx)
-        print("Tudo o que o Claude Aqui criou foi removido.")
-        return 0
+        report = service.remove_all(ctx)
+        print(report.summary(), file=sys.stdout if report.ok else sys.stderr)
+        return 0 if report.ok else 1
     return _gui()

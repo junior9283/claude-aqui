@@ -106,3 +106,31 @@ def test_cli_disable_works_when_binary_is_gone(env, capsys):
     (fakebin / "nemo").unlink()
     assert cli.main(["--disable", "nemo"]) == 0
     assert not any(e.exists() for e in entries)
+
+
+def test_cli_remove_all_failure_exits_1_and_lists_paths(env, capsys):
+    ctx, fakebin = env
+    write_executable(fakebin / "nautilus", "exit 0\n")
+    cli.main(["--enable", "nautilus"])
+    capsys.readouterr()
+    ctx.stub_path.parent.chmod(0o500)
+    try:
+        code = cli.main(["--remove-all"])
+    finally:
+        ctx.stub_path.parent.chmod(0o700)
+    out = capsys.readouterr()
+    assert code == 1
+    assert str(ctx.stub_path) in out.err
+    assert "foi removido" not in out.out
+
+
+def test_cli_remove_all_mentions_kept_backup(env, capsys):
+    ctx, fakebin = env
+    write_executable(fakebin / "thunar", "exit 0\n")
+    uca = ctx.config_dir / "Thunar" / "uca.xml"
+    uca.parent.mkdir(parents=True)
+    uca.write_text("<actions><action><unique-id>u</unique-id></action></actions>")
+    cli.main(["--enable", "thunar"])
+    capsys.readouterr()
+    assert cli.main(["--remove-all"]) == 0
+    assert "uca.xml.claude-aqui.bak" in capsys.readouterr().out

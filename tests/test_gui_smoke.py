@@ -12,7 +12,7 @@ if not Gtk.init_check():
 
 from claude_aqui import gui  # noqa: E402
 from claude_aqui.base import ConflictError, Context, Status  # noqa: E402
-from claude_aqui.service import AppSnapshot, ManagerRow  # noqa: E402
+from claude_aqui.service import AppSnapshot, ManagerRow, RemoveReport  # noqa: E402
 
 
 def make_snapshot(**over):
@@ -132,7 +132,7 @@ def test_rotulo_automatico_usa_o_terminal_do_modo_automatico(build):
 
 def test_remover_tudo_so_age_apos_confirmacao(build, monkeypatch):
     calls = []
-    monkeypatch.setattr(gui.service, "remove_all", lambda c: calls.append(1))
+    monkeypatch.setattr(gui.service, "remove_all", lambda c: (calls.append(1), RemoveReport())[1])
     win = build(make_snapshot())
     win._on_remove_response(Gtk.Window(), Gtk.ResponseType.CANCEL)
     win._on_remove_response(Gtk.Window(), Gtk.ResponseType.DELETE_EVENT)
@@ -143,7 +143,7 @@ def test_remover_tudo_so_age_apos_confirmacao(build, monkeypatch):
 
 def test_remover_tudo_abre_dialogo_sem_remover(build, monkeypatch):
     calls = []
-    monkeypatch.setattr(gui.service, "remove_all", lambda c: calls.append(1))
+    monkeypatch.setattr(gui.service, "remove_all", lambda c: (calls.append(1), RemoveReport())[1])
     win = build(make_snapshot())
     win._on_remove_clicked(None)
     assert calls == []
@@ -154,3 +154,12 @@ def test_gui_nao_usa_apis_posteriores_ao_libadwaita_1_1():
     proibidas = ("Adw.Banner", "Adw.SwitchRow", "Adw.AlertDialog", "Adw.MessageDialog",
                  "Adw.ResponseAppearance", "Adw.ToolbarView", "Gtk.AlertDialog")
     assert [n for n in proibidas if n in source] == []
+
+
+def test_remover_tudo_com_falha_nao_diz_que_removeu_tudo(build, monkeypatch):
+    monkeypatch.setattr(gui.service, "remove_all",
+                        lambda c: RemoveReport(failed=["/x/stub: Permissão negada"]))
+    win = build(make_snapshot())
+    win._on_remove_response(Gtk.Window(), Gtk.ResponseType.ACCEPT)
+    title = win.last_toast.get_title()
+    assert "/x/stub" in title and "Tudo o que o Claude Aqui criou foi removido" not in title

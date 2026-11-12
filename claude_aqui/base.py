@@ -106,6 +106,10 @@ class FileManager(ABC):
     def render(self, entry: Path) -> tuple[str, int]:
         """Conteúdo e modo do entry (deve conter MARKER)."""
 
+    def preserved(self) -> list[Path]:
+        """Arquivos do usuário que o disable mantém de propósito (ex.: backups)."""
+        return []
+
     def status(self) -> Status:
         if not self.is_installed():
             return Status.NOT_INSTALLED

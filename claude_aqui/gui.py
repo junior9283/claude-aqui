@@ -170,9 +170,9 @@ class MainWindow(Adw.ApplicationWindow):
         dialog.destroy()
         if response != Gtk.ResponseType.ACCEPT:
             return
-        service.remove_all(self.ctx)
+        report = service.remove_all(self.ctx)
         self.refresh()
-        self.toast("Tudo o que o Claude Aqui criou foi removido.")
+        self.toast(report.summary())
 
 
 def build_window(app, ctx: Context, snapshot_fn=service.snapshot) -> MainWindow:

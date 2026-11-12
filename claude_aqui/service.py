@@ -1,7 +1,8 @@
 """Camada de serviço compartilhada pela GUI e pela CLI."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 
 from . import launcher
 from .base import ConflictError, Context, FileManager, Status, is_managed
@@ -76,20 +77,52 @@ def set_terminal(ctx: Context, terminal: str | None) -> None:
     save_terminal(ctx, terminal)
 
 
-def remove_all(ctx: Context) -> None:
-    """Remove tudo que o app criou: entries, stub e configuração."""
-    for manager in all_managers(ctx):
+@dataclass
+class RemoveReport:
+    failed: list[str] = field(default_factory=list)  # "caminho: motivo" do que não saiu
+    kept: list[Path] = field(default_factory=list)  # backups de arquivos do usuário, mantidos de propósito
+
+    @property
+    def ok(self) -> bool:
+        return not self.failed
+
+    def summary(self) -> str:
+        if self.ok:
+            lines = ["Tudo o que o Claude Aqui criou foi removido."]
+        else:
+            lines = ["Não foi possível remover tudo:", *(f"- {f}" for f in self.failed)]
+        lines += [f"Mantido de propósito (backup do seu arquivo): {p}" for p in self.kept]
+        return "\n".join(lines)
+
+
+def _failure(path, exc: OSError) -> str:
+    return f"{exc.filename or path}: {exc.strerror or exc}"
+
+
+def remove_all(ctx: Context) -> RemoveReport:
+    """Remove tudo que o app criou (entries, stub e configuração) e diz o que ficou."""
+    report = RemoveReport()
+    managers = all_managers(ctx)
+    for manager in managers:
         try:
             manager.disable()
-        except (ConflictError, OSError):
-            pass
-    if is_managed(ctx.stub_path):  # nunca apaga arquivo sem a nossa marca
-        ctx.stub_path.unlink()
+        except ConflictError as exc:
+            report.failed.append(f"{exc.path}: arquivo inválido, não foi alterado")
+        except OSError as exc:
+            report.failed.append(_failure(manager.entries()[0], exc))
     app_config = ctx.config_dir / "claude-aqui"
-    # O arquivo de config não tem marca: o caminho é exclusivamente nosso.
-    (app_config / "config").unlink(missing_ok=True)
+    # O stub só sai se tiver a nossa marca; o arquivo de config não tem marca,
+    # mas o caminho é exclusivamente nosso.
+    for path in (ctx.stub_path, app_config / "config"):
+        try:
+            if path != ctx.stub_path or is_managed(path):
+                path.unlink(missing_ok=True)
+        except OSError as exc:
+            report.failed.append(_failure(path, exc))
     for directory in (ctx.stub_path.parent, app_config):
         try:
             directory.rmdir()
         except OSError:
             pass  # ausente ou com arquivos alheios
+    report.kept = [p for m in managers for p in m.preserved()]
+    return report

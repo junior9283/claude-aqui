@@ -133,3 +133,63 @@ def test_generated_files_are_never_writable_by_group_or_others(ctx):
     assert len(files) >= 9
     for path in files:
         assert path.stat().st_mode & 0o022 == 0, path
+
+
+# ---------- remove_all informa falhas e o que foi mantido (item 12) ----------
+
+def test_remove_all_report_ok_when_everything_removed(ctx):
+    install(ctx, "nautilus")
+    service.set_manager(ctx, "nautilus", True)
+    report = service.remove_all(ctx)
+    assert report.ok and report.failed == [] and report.kept == []
+    assert report.summary() == "Tudo o que o Claude Aqui criou foi removido."
+
+
+def test_remove_all_reports_what_could_not_be_removed(ctx):
+    install(ctx, "nautilus")
+    service.set_manager(ctx, "nautilus", True)
+    ctx.stub_path.parent.chmod(0o500)  # sem permissão para apagar o stub
+    try:
+        report = service.remove_all(ctx)
+    finally:
+        ctx.stub_path.parent.chmod(0o700)
+    assert not report.ok
+    assert any(str(ctx.stub_path) in f for f in report.failed)
+    assert ctx.stub_path.exists()
+    assert "Não foi possível remover" in report.summary()
+    assert str(ctx.stub_path) in report.summary()
+
+
+def test_remove_all_reports_unremovable_entry(ctx):
+    install(ctx, "nautilus")
+    service.set_manager(ctx, "nautilus", True)
+    entry = service.all_managers(ctx)[0].entries()[0]
+    entry.parent.chmod(0o500)
+    try:
+        report = service.remove_all(ctx)
+    finally:
+        entry.parent.chmod(0o700)
+    assert not report.ok and any(str(entry) in f for f in report.failed)
+
+
+def test_remove_all_reports_malformed_uca_as_not_removed(ctx):
+    install(ctx, "thunar")
+    uca = ctx.config_dir / "Thunar" / "uca.xml"
+    uca.parent.mkdir(parents=True)
+    uca.write_text("<actions><action>")
+    report = service.remove_all(ctx)
+    assert not report.ok and any(str(uca) in f for f in report.failed)
+    assert uca.read_text() == "<actions><action>"
+
+
+def test_remove_all_mentions_kept_user_backup(ctx):
+    install(ctx, "thunar")
+    uca = ctx.config_dir / "Thunar" / "uca.xml"
+    uca.parent.mkdir(parents=True)
+    uca.write_text("<actions><action><unique-id>u</unique-id></action></actions>")
+    service.set_manager(ctx, "thunar", True)
+    report = service.remove_all(ctx)
+    bak = uca.with_name("uca.xml.claude-aqui.bak")
+    assert bak.exists() and report.ok
+    assert report.kept == [bak]
+    assert str(bak) in report.summary() and "mantido" in report.summary().lower()

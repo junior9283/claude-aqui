@@ -52,6 +52,9 @@ class ThunarManager(FileManager):
     def entries(self) -> list[Path]:
         return [self.uca]
 
+    def preserved(self) -> list[Path]:
+        return [self.backup] if self.backup.exists() else []
+
     def render(self, entry: Path) -> tuple[str, int]:
         return ET.tostring(self._build_action(), encoding="unicode"), 0o644
 
