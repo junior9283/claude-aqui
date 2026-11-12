@@ -94,3 +94,28 @@ def test_foreign_script_conflict(cls, var, rel, tmp_path, monkeypatch):
     with pytest.raises(ConflictError):
         mgr.enable()
     assert script.read_text() == "#!/bin/sh\necho meu\n"
+
+
+HOSTILE_DIRS = ["it's", "a$HOME b", "x$(touch CANARY)y", "q`touch CANARY`", 'd"q"', "b\\s"]
+
+
+@pytest.mark.parametrize("name", HOSTILE_DIRS, ids=repr)
+@pytest.mark.parametrize("cls,var,rel", CASES)
+def test_script_and_stub_survive_hostile_home_and_launcher_path(cls, var, rel, name, tmp_path, monkeypatch):
+    """Apóstrofo e $ no HOME e no caminho do lançador: nada é interpretado pelo shell."""
+    home = tmp_path / name
+    home.mkdir()
+    launcher_dir = tmp_path / f"lançador {name}"
+    launcher_dir.mkdir()
+    log = tmp_path / "launcher.log"
+    fake = launcher_dir / "claude-aqui-launch"
+    fake.write_text(f'#!/bin/sh\nprintf "%s|%s\\n" "$#" "${var}_SCRIPT_SELECTED_FILE_PATHS" > "{log}"\n')
+    fake.chmod(0o755)
+    folder = tmp_path / "projeto"
+    folder.mkdir()
+    mgr = _manager(cls, home, monkeypatch, launcher=fake)
+    mgr.enable()
+    env = {**os.environ, f"{var}_SCRIPT_SELECTED_FILE_PATHS": f"{folder}\n"}
+    subprocess.run([str(home / rel / NAME)], env=env, check=True, cwd=tmp_path)
+    assert log.read_text(encoding="utf-8") == f"0|{folder}\n\n"
+    assert not list(tmp_path.rglob("CANARY"))
