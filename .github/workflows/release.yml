@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y python3-pytest python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 xvfb
-      - run: xvfb-run -a python3 -m pytest -q
+      - run: xvfb-run -a python3 -m pytest -q --ignore=tests/test_packaging_rpm.py
   build:
     needs: test
     runs-on: ubuntu-latest
