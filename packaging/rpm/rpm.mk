@@ -1,4 +1,5 @@
 RPMBUILD_DIR ?= $(CURDIR)/build/rpm
+RPMBUILD_ARGS ?=
 
 .PHONY: rpm
 
@@ -11,5 +12,5 @@ rpm: dist
 	root=$$(mktemp -d) && { \
 		rpmbuild -bb packaging/rpm/claude-aqui.spec \
 			--define "_topdir $(RPMBUILD_DIR)" --define "_builddir $$root" \
-			--define "version $(VERSION)"; rc=$$?; rm -rf "$$root"; exit $$rc; }
+			--define "version $(VERSION)" $(RPMBUILD_ARGS); rc=$$?; rm -rf "$$root"; exit $$rc; }
 	cp "$(RPMBUILD_DIR)"/RPMS/noarch/claude-aqui-$(VERSION)-*.rpm "$(DISTDIR)/"

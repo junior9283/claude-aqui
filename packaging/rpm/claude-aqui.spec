@@ -11,10 +11,17 @@ BuildArch:      noarch
 Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  make
-Requires:       python3
+# ET.indent (Python 3.9+): openSUSE Leap 15.x (python3 = 3.6) fica fora do alvo.
+Requires:       python3 >= 3.9
 Requires:       python3-gobject
+%if 0%{?suse_version}
+# openSUSE: os pacotes são libgtk-4-1/libadwaita-1-0; as typelibs puxam as bibliotecas.
+Requires:       typelib(Gtk) = 4.0
+Requires:       typelib(Adw) = 1
+%else
 Requires:       gtk4
 Requires:       libadwaita
+%endif
 Recommends:     libnotify
 
 %description
@@ -38,5 +45,5 @@ make install DESTDIR="%{buildroot}" PREFIX=%{_prefix}
 %{_datadir}/icons/hicolor/scalable/apps/claude-aqui.svg
 
 %changelog
-* Thu Nov 12 2026 Claude Aqui <noreply@example.com> - 0.1.0-1
+* Thu Nov 12 2026 Claude Aqui <noreply@example.invalid> - 0.1.0-1
 - Primeiro pacote

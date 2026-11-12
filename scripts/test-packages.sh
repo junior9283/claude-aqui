@@ -15,7 +15,7 @@ set -u
 FORMAT=${1:-}
 case $FORMAT in
     deb) IMAGES="docker.io/library/debian:12 docker.io/library/ubuntu:22.04" ;;
-    rpm) IMAGES="registry.fedoraproject.org/fedora:latest" ;;
+    rpm) IMAGES="registry.fedoraproject.org/fedora:latest registry.opensuse.org/opensuse/tumbleweed:latest" ;;
     arch) IMAGES="docker.io/library/archlinux:latest" ;;
     *) echo "uso: $0 <deb|rpm|arch>" >&2; exit 2 ;;
 esac
@@ -47,18 +47,28 @@ deb)
     step "dependências de build"
     apt-get update -qq >/dev/null
     apt-get install -y -qq --no-install-recommends make dpkg-dev >/dev/null
-    step "make deb"
-    make deb >/dev/null
+    step "make deb (umask 077: o DEBIAN/ precisa continuar 0755)"
+    (umask 077 && make deb >/dev/null)
     step "instalando o .deb"
     apt-get install -y -qq --no-install-recommends ./dist/claude-aqui_*_all.deb >/dev/null
     ;;
 rpm)
-    step "dependências de build"
-    dnf install -y -q make rpm-build tar gzip >/dev/null
-    step "make rpm"
-    make rpm >/dev/null
-    step "instalando o .rpm"
-    dnf install -y -q dist/claude-aqui-*.rpm >/dev/null
+    # Fedora usa dnf; openSUSE (Leap 16+/Tumbleweed) usa zypper e resolve as typelibs.
+    if command -v zypper >/dev/null 2>&1; then
+        step "dependências de build (zypper)"
+        zypper -n --gpg-auto-import-keys install --no-recommends make rpm-build tar gzip shadow util-linux util-linux-systemd gawk findutils grep >/dev/null
+        step "make rpm"
+        make rpm >/dev/null
+        step "instalando o .rpm"
+        zypper -n install --allow-unsigned-rpm --no-recommends dist/claude-aqui-*.rpm >/dev/null
+    else
+        step "dependências de build"
+        dnf install -y -q make rpm-build tar gzip >/dev/null
+        step "make rpm"
+        make rpm >/dev/null
+        step "instalando o .rpm"
+        dnf install -y -q dist/claude-aqui-*.rpm >/dev/null
+    fi
     ;;
 arch)
     step "dependências de build"
@@ -101,7 +111,9 @@ PCMAN=$D/file-manager/actions/claude-aqui.desktop
 STUB=$D/claude-aqui/menu-stub
 
 echo "   [lançador]"
-claude-aqui-launch --list-terminals; echo "     --list-terminals saiu com $?"
+claude-aqui-launch --list-terminals; rc=$?
+echo "     --list-terminals saiu com $rc"
+[ "$rc" -eq 0 ] || fail "--list-terminals saiu com $rc"
 claude-aqui-launch --find-claude; rc=$?
 echo "     --find-claude saiu com $?"
 [ "$rc" -le 1 ] || fail "--find-claude saiu com $rc"
@@ -117,7 +129,9 @@ grepq 'Exec=' "$NEMO1"
 grepq 'claude-aqui-1' "$UCA"
 grepq 'X-Action-Profile' "$PCMAN"
 claude-aqui --status || fail "--status falhou"
-claude-aqui --status | awk -F'\t' '{print $3}' | grep -qv 'ativado' && fail "algum gerenciador não ficou ativado"
+# comparação exata ("desativado" também contém "ativado"): os 6 gerenciadores devem estar "ativado"
+n=$(claude-aqui --status | awk -F'\t' '$3 == "ativado"' | wc -l)
+[ "$n" -eq 6 ] && ok "6 gerenciadores ativados" || fail "esperava 6 gerenciadores ativados, achei $n"
 "$STUB" --list-terminals >/dev/null || fail "o stub não repassou ao lançador"
 
 echo "   [--disable all]"

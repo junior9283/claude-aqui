@@ -5,7 +5,7 @@ pkgrel=1
 pkgdesc='Abre o Claude Code em qualquer pasta pelo menu de contexto do gerenciador de arquivos'
 arch=('any')
 license=('MIT')
-depends=(python python-gobject gtk4 libadwaita)
+depends=('python>=3.9' python-gobject gtk4 libadwaita)
 optdepends=('libnotify: avisos do menu')
 makedepends=(make)
 # O tarball é local: gerado por `make arch-src` (a partir de `make dist`) e

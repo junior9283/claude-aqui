@@ -7,7 +7,7 @@ e linha de comando.
 
 ## Gerenciadores suportados
 
-Nautilus (GNOME Files), Dolphin, Nemo, Caja, Thunar e PCManFM/PCManFM-Qt.
+Nautilus (GNOME Files), Dolphin, Nemo, Caja, Thunar e PCManFM-Qt (`pcmanfm-qt`; o PCManFM em GTK não é detectado).
 
 Observações importantes:
 
@@ -23,11 +23,29 @@ Observações importantes:
 
 ## Distribuições-alvo
 
-Ubuntu 22.04+, Debian 12+, Linux Mint 22+, Fedora e Nobara atuais, openSUSE Leap 15.5+ e Arch.
+Ubuntu 22.04+, Debian 12+, Linux Mint 22+, Fedora e Nobara atuais, **openSUSE Leap 16+ e
+Tumbleweed** e Arch. O openSUSE Leap 15.x **não é suportado**: o `python3` dele é o 3.6.
+
+Requer **Python 3.9 ou mais novo** (o código usa `ET.indent`, `unlink(missing_ok=)` e
+`from __future__ import annotations`); os três pacotes declaram essa dependência.
+
+Terminais reconhecidos (modo automático): `xdg-terminal-exec`, `x-terminal-emulator`, o
+terminal padrão do desktop (gsettings no GNOME, kreadconfig no KDE) e, por prioridade,
+gnome-terminal, konsole, kitty, alacritty, xfce4-terminal, xterm e os acrescentados nesta
+versão (ver `claude-aqui-launch --list-terminals`). Se o terminal falhar ao abrir, o
+lançador mostra um aviso em vez de falhar em silêncio.
 
 ## Instalação
 
-Pelos pacotes (deb, rpm, PKGBUILD): veja `packaging/`.
+Pelos pacotes (veja `packaging/`):
+
+    make deb                          # dist/claude-aqui_VERSÃO_all.deb (precisa de dpkg-deb)
+    make rpm                          # dist/claude-aqui-VERSÃO-1*.noarch.rpm (precisa de rpmbuild)
+    make arch-src                     # build/arch/ com PKGBUILD + tarball; depois: cd build/arch && makepkg
+    scripts/test-packages.sh deb|rpm|arch   # constrói, instala e testa em contêineres podman/docker
+
+`scripts/test-packages.sh` testa deb (Debian 12, Ubuntu 22.04), rpm (Fedora e openSUSE
+Tumbleweed) e arch, imprimindo PASS/FAIL por imagem. O repositório é montado só para leitura.
 
 A partir do código-fonte:
 
@@ -47,7 +65,7 @@ Abra **Claude Aqui** no menu de aplicativos e ative os gerenciadores desejados, 
     claude-aqui --status            # estado de cada gerenciador
     claude-aqui --enable ID|all     # ativa o item de menu
     claude-aqui --disable ID|all    # desativa o item de menu
-    claude-aqui --remove-all        # remove tudo que o app criou
+    claude-aqui --remove-all        # remove tudo que o app criou (sai com 1 e lista o que não pôde ser removido)
 
 Sem argumentos abre a interface gráfica.
 
@@ -56,3 +74,7 @@ Sem argumentos abre a interface gráfica.
 **Antes de desinstalar o pacote, use "Remover tudo"** na interface (ou
 `claude-aqui --remove-all`): os itens de menu ficam na sua pasta pessoal e o gerenciador de
 pacotes não os remove.
+
+O `~/.config/Thunar/uca.xml.claude-aqui.bak` (cópia do seu `uca.xml` antes da primeira edição)
+é **mantido de propósito**, mesmo no "Remover tudo", para não apagar dados seus; o app avisa
+o caminho. Apague-o à mão se não precisar mais dele.

@@ -5,6 +5,7 @@ DEBDIR ?= build/deb
 deb:
 	rm -rf "$(DEBDIR)"
 	$(MAKE) install DESTDIR="$(DEBDIR)" PREFIX=/usr
-	install -d "$(DEBDIR)/DEBIAN" "$(DISTDIR)"
+	install -d -m 0755 "$(DEBDIR)/DEBIAN"
+	mkdir -p "$(DISTDIR)"
 	sed 's|@VERSION@|$(VERSION)|' packaging/deb/control.in > "$(DEBDIR)/DEBIAN/control"
 	dpkg-deb --root-owner-group --build "$(DEBDIR)" "$(DISTDIR)/claude-aqui_$(VERSION)_all.deb"

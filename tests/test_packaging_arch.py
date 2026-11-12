@@ -32,7 +32,7 @@ def test_tarball_tem_o_nome_esperado_em_source(arch_src):
 
 def test_dependencias_e_sem_scripts_install(arch_src):
     pkgbuild = (arch_src / "PKGBUILD").read_text()
-    assert "depends=(python python-gobject gtk4 libadwaita)" in pkgbuild
+    assert "depends=('python>=3.9' python-gobject gtk4 libadwaita)" in pkgbuild
     assert "libnotify" in pkgbuild
     assert "install=" not in pkgbuild
 

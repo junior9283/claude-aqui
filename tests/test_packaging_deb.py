@@ -34,7 +34,7 @@ def test_control(deb):
     assert "Package: claude-aqui" in info
     assert f"Version: {VERSION}" in info
     assert "Architecture: all" in info
-    assert "Depends: python3, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1" in info
+    assert "Depends: python3 (>= 3.9), python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1" in info
     assert "Recommends: libnotify-bin" in info
 
 
@@ -62,3 +62,15 @@ def test_modes_and_owner(deb):
     for exe in EXECUTABLES:
         line = next(l for l in lines if l.endswith("/" + exe))
         assert line.split()[0] == "-rwxr-xr-x", line
+
+
+def test_build_with_restrictive_umask(tmp_path):
+    """DEBIAN/ precisa de 0755 mesmo com umask 077 (senão o dpkg-deb recusa)."""
+    out = tmp_path / "o"
+    out.mkdir()
+    r = subprocess.run(
+        ["sh", "-c", 'umask 077 && make -s deb VERSION=0.0.1 DEBDIR="$1/root" DISTDIR="$1"', "sh", str(out)],
+        cwd=ROOT, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert (out / "claude-aqui_0.0.1_all.deb").is_file()
+    assert (out / "root" / "DEBIAN").stat().st_mode & 0o777 == 0o755

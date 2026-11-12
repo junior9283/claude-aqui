@@ -4,7 +4,7 @@ Architecture: all
 Maintainer: Claude Aqui <noreply@example.invalid>
 Section: utils
 Priority: optional
-Depends: python3, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1
+Depends: python3 (>= 3.9), python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1
 Recommends: libnotify-bin
 Description: Abre o Claude Code em qualquer pasta pelo menu de contexto
  Adiciona ao gerenciador de arquivos uma entrada para abrir o Claude Code
