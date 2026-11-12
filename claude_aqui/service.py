@@ -1,0 +1,93 @@
+"""Camada de serviço compartilhada pela GUI e pela CLI."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from . import launcher
+from .base import ConflictError, Context, FileManager, Status, is_managed
+from .config import load_terminal, save_terminal
+from .managers import all_managers
+
+
+@dataclass
+class ManagerRow:
+    id: str
+    name: str
+    status: Status
+    message: str | None
+
+
+@dataclass
+class AppSnapshot:
+    managers: list[ManagerRow]
+    terminals: list[str]
+    configured_terminal: str | None
+    effective_terminal: str | None
+    terminal_fallback: bool  # escolhido não instalado -> usando automático
+    claude_path: str | None
+
+
+def _row(manager: FileManager) -> ManagerRow:
+    status = manager.status()
+    message = None
+    if status is Status.CONFLICT:
+        conflicting = next(
+            (e for e in manager.entries() if e.exists() and not is_managed(e)), None
+        )
+        if conflicting is not None:
+            message = f"Já existe um arquivo que não é do Claude Aqui: {conflicting}"
+    return ManagerRow(manager.id, manager.name, status, message)
+
+
+def manager_rows(ctx: Context) -> list[ManagerRow]:
+    return [_row(m) for m in all_managers(ctx)]
+
+
+def snapshot(ctx: Context) -> AppSnapshot:
+    terminals = launcher.list_terminals()
+    configured = load_terminal(ctx)
+    return AppSnapshot(
+        managers=manager_rows(ctx),
+        terminals=terminals,
+        configured_terminal=configured,
+        effective_terminal=launcher.resolve_terminal(),
+        terminal_fallback=configured is not None and configured not in terminals,
+        claude_path=launcher.find_claude(),
+    )
+
+
+def _get_manager(ctx: Context, manager_id: str) -> FileManager:
+    for manager in all_managers(ctx):
+        if manager.id == manager_id:
+            return manager
+    raise KeyError(manager_id)
+
+
+def set_manager(ctx: Context, manager_id: str, enabled: bool) -> None:
+    """Liga/desliga um gerenciador; propaga ConflictError ao ligar."""
+    manager = _get_manager(ctx, manager_id)
+    if enabled:
+        manager.enable()
+    else:
+        manager.disable()
+
+
+def set_terminal(ctx: Context, terminal: str | None) -> None:
+    save_terminal(ctx, terminal)
+
+
+def remove_all(ctx: Context) -> None:
+    """Remove tudo que o app criou: entries, stub e configuração."""
+    for manager in all_managers(ctx):
+        try:
+            manager.disable()
+        except (ConflictError, OSError):
+            pass
+    ctx.stub_path.unlink(missing_ok=True)
+    app_config = ctx.config_dir / "claude-aqui"
+    (app_config / "config").unlink(missing_ok=True)
+    for directory in (ctx.stub_path.parent, app_config):
+        try:
+            directory.rmdir()
+        except OSError:
+            pass  # ausente ou com arquivos alheios
