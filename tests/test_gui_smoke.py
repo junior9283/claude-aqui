@@ -25,7 +25,7 @@ def make_snapshot(**over):
         ],
         terminals=["xterm", "konsole"],
         configured_terminal=None,
-        effective_terminal="xterm",
+        auto_terminal="xterm",
         terminal_fallback=False,
         claude_path="/x/claude",
     )
@@ -46,7 +46,7 @@ def build(ctx, monkeypatch):
     def _build(snapshot, **kw):
         monkeypatch.setattr(gui.service, "set_manager", kw.get("set_manager", lambda *a: None))
         monkeypatch.setattr(gui.service, "set_terminal", kw.get("set_terminal", lambda *a: None))
-        return gui.build_window(app, ctx, snapshot_fn=lambda c: snapshot)
+        return gui.build_window(app, ctx, snapshot_fn=kw.get("snapshot_fn", lambda c: snapshot))
 
     return _build
 
@@ -96,11 +96,38 @@ def test_conflito_mostra_toast_e_volta_switch(build):
 
 
 def test_troca_de_terminal(build):
+    state = {"terminal": None}
     calls = []
-    win = build(make_snapshot(), set_terminal=lambda c, t: calls.append(t))
+
+    def set_terminal(c, t):
+        calls.append(t)
+        state["terminal"] = t
+
+    win = build(make_snapshot(), set_terminal=set_terminal,
+                snapshot_fn=lambda c: make_snapshot(configured_terminal=state["terminal"]))
     win.terminal_row.set_selected(2)
     win.terminal_row.set_selected(0)
     assert calls == ["konsole", None]
+
+
+def test_troca_de_terminal_atualiza_o_aviso_de_fallback(build):
+    """Depois de escolher o terminal a janela relê o estado (o aviso de fallback some)."""
+    state = {"terminal": "foot"}  # escolhido antes e desinstalado
+    win = build(
+        make_snapshot(), set_terminal=lambda c, t: state.update(terminal=t),
+        snapshot_fn=lambda c: make_snapshot(
+            configured_terminal=state["terminal"],
+            terminal_fallback=state["terminal"] == "foot"))
+    win.refresh()
+    assert "desinstalado" in win.terminal_row.get_subtitle()
+    win.terminal_row.set_selected(1)
+    assert win.terminal_row.get_subtitle() == ""
+    assert win.terminal_row.get_selected() == 1
+
+
+def test_rotulo_automatico_usa_o_terminal_do_modo_automatico(build):
+    win = build(make_snapshot(configured_terminal="konsole", auto_terminal="xterm"))
+    assert win.terminal_row.get_model().get_string(0) == "Automático (detectado: xterm)"
 
 
 def test_remover_tudo_so_age_apos_confirmacao(build, monkeypatch):

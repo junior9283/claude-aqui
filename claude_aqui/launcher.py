@@ -22,8 +22,9 @@ def list_terminals() -> list[str]:
     return _run("--list-terminals")
 
 
-def resolve_terminal() -> str | None:
-    return next(iter(_run("--resolve-terminal")), None)
+def resolve_terminal(auto: bool = False) -> str | None:
+    """Terminal efetivo; com auto=True ignora o terminal escolhido na configuração."""
+    return next(iter(_run("--resolve-terminal", *(["--auto"] if auto else []))), None)
 
 
 def find_claude() -> str | None:

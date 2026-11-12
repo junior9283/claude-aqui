@@ -10,7 +10,7 @@ def fake(tmp_path, monkeypatch):
         '#!/bin/sh\n'
         'case $1 in\n'
         '--list-terminals) printf "kitty\\nxterm\\n" ;;\n'
-        '--resolve-terminal) printf "kitty\\n" ;;\n'
+        '--resolve-terminal) if [ "${2:-}" = --auto ]; then printf "xterm\\n"; else printf "kitty\\n"; fi ;;\n'
         '--find-claude) printf "/home/u/.local/bin/claude\\n" ;;\n'
         'esac\n'
     )
@@ -22,6 +22,7 @@ def fake(tmp_path, monkeypatch):
 def test_launcher_client_parses_outputs(fake):
     assert launcher.list_terminals() == ["kitty", "xterm"]
     assert launcher.resolve_terminal() == "kitty"
+    assert launcher.resolve_terminal(auto=True) == "xterm"
     assert launcher.find_claude() == "/home/u/.local/bin/claude"
 
 

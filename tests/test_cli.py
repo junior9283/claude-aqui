@@ -18,7 +18,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.delenv("XDG_DATA_HOME", raising=False)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(home / ".config"))
     monkeypatch.setattr(launcher, "list_terminals", lambda: [])
-    monkeypatch.setattr(launcher, "resolve_terminal", lambda: None)
+    monkeypatch.setattr(launcher, "resolve_terminal", lambda auto=False: None)
     monkeypatch.setattr(launcher, "find_claude", lambda: None)
     return Context(home=home, launcher="/bin/true"), fakebin
 

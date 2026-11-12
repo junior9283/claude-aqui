@@ -58,6 +58,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.manager_rows: dict[str, ManagerRowWidget] = {}
         self.last_toast: Adw.Toast | None = None
         self._terminals: list[str] = []
+        self._labels: list[str] = []
         self._refreshing = False
 
         snap = snapshot_fn(ctx)
@@ -114,8 +115,10 @@ class MainWindow(Adw.ApplicationWindow):
             for row in snap.managers:
                 self.manager_rows[row.id].update(row)
             self._terminals = snap.terminals
-            labels = [AUTO_LABEL.format(snap.effective_terminal or "nenhum"), *snap.terminals]
-            self.terminal_row.set_model(Gtk.StringList.new(labels))
+            labels = [AUTO_LABEL.format(snap.auto_terminal or "nenhum"), *snap.terminals]
+            if labels != self._labels:  # trocar o modelo dentro de notify::selected trava o GTK
+                self._labels = labels
+                self.terminal_row.set_model(Gtk.StringList.new(labels))
             if snap.configured_terminal in snap.terminals:
                 self.terminal_row.set_selected(snap.terminals.index(snap.configured_terminal) + 1)
             else:
@@ -147,6 +150,7 @@ class MainWindow(Adw.ApplicationWindow):
             return
         index = row.get_selected()
         service.set_terminal(self.ctx, self._terminals[index - 1] if index > 0 else None)
+        self.refresh()  # o aviso de fallback depende do terminal escolhido
 
     def _on_remove_clicked(self, _button) -> None:
         dialog = Gtk.MessageDialog(

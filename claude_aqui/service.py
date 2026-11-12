@@ -22,7 +22,7 @@ class AppSnapshot:
     managers: list[ManagerRow]
     terminals: list[str]
     configured_terminal: str | None
-    effective_terminal: str | None
+    auto_terminal: str | None  # o que o modo automático escolheria (ignora a escolha do usuário)
     terminal_fallback: bool  # escolhido não instalado -> usando automático
     claude_path: str | None
 
@@ -50,7 +50,7 @@ def snapshot(ctx: Context) -> AppSnapshot:
         managers=manager_rows(ctx),
         terminals=terminals,
         configured_terminal=configured,
-        effective_terminal=launcher.resolve_terminal(),
+        auto_terminal=launcher.resolve_terminal(auto=True),
         terminal_fallback=configured is not None and configured not in terminals,
         claude_path=launcher.find_claude(),
     )

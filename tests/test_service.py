@@ -16,7 +16,7 @@ def ctx(tmp_path, monkeypatch):
     monkeypatch.delenv("XDG_DATA_HOME", raising=False)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(home / ".config"))
     monkeypatch.setattr(launcher, "list_terminals", lambda: ["xterm", "konsole"])
-    monkeypatch.setattr(launcher, "resolve_terminal", lambda: "xterm")
+    monkeypatch.setattr(launcher, "resolve_terminal", lambda auto=False: "xterm" if auto else "konsole")
     monkeypatch.setattr(launcher, "find_claude", lambda: "/x/claude")
     c = Context(home=home, launcher="/bin/true")
     c.fakebin = fakebin
@@ -53,7 +53,7 @@ def test_snapshot_flags_terminal_fallback_when_configured_one_missing(ctx):
     save_terminal(ctx, "kitty")
     s = service.snapshot(ctx)
     assert s.configured_terminal == "kitty" and s.terminal_fallback is True
-    assert s.effective_terminal == "xterm" and s.terminals == ["xterm", "konsole"]
+    assert s.auto_terminal == "xterm" and s.terminals == ["xterm", "konsole"]
     save_terminal(ctx, "konsole")
     assert service.snapshot(ctx).terminal_fallback is False
     save_terminal(ctx, None)
