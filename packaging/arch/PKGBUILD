@@ -1,0 +1,19 @@
+# Maintainer: Claude Aqui
+pkgname=claude-aqui
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Abre o Claude Code em qualquer pasta pelo menu de contexto do gerenciador de arquivos'
+arch=('any')
+license=('MIT')
+depends=(python python-gobject gtk4 libadwaita)
+optdepends=('libnotify: avisos do menu')
+makedepends=(make)
+# O tarball é local: gerado por `make arch-src` (a partir de `make dist`) e
+# copiado para esta pasta junto com o PKGBUILD; por isso não há checksum.
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+package() {
+  cd "$pkgname-$pkgver"
+  make install DESTDIR="$pkgdir" PREFIX=/usr
+}
