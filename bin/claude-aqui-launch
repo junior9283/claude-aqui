@@ -1,0 +1,144 @@
+#!/bin/sh
+# claude-aqui-launch - abre o Claude Code numa pasta, dentro de um terminal.
+#
+#   claude-aqui-launch [CAMINHO]        modo externo (abre o terminal)
+#   claude-aqui-launch --run PASTA      modo interno (dentro do terminal)
+#   claude-aqui-launch --find-claude    imprime o caminho do `claude`
+#   claude-aqui-launch --list-terminals ids dos terminais instalados
+#   claude-aqui-launch --resolve-terminal  id do terminal efetivo
+#
+# Segurança: o caminho da pasta nunca é interpolado em string de shell nem
+# passado a eval/sh -c; ele só circula entre aspas e como argumento de lista.
+
+NL='
+'
+TITLE="Claude Aqui"
+# Terminais com flags confirmados (--help/man). Ordem = prioridade automática.
+TERMINALS="gnome-terminal konsole kitty alacritty xfce4-terminal xterm"
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# Erro ao usuário: notify-send, depois zenity/kdialog, depois stderr. Sai com 1.
+fail() {
+    if have notify-send && notify-send -a "$TITLE" -- "$TITLE" "$1" 2>/dev/null; then :
+    elif have zenity && zenity --error --no-markup --title "$TITLE" --text "$1" 2>/dev/null; then :
+    elif have kdialog && kdialog --error "$1" 2>/dev/null; then :
+    else printf '%s\n' "$1" >&2
+    fi
+    exit 1
+}
+
+# Decodifica %XX de uma URI file://. Lê de ENVIRON (sem interpretar barras
+# invertidas) e imprime sem quebra de linha final.
+decode_uri() {
+    U=$1 LC_ALL=C awk 'BEGIN {
+        s = ENVIRON["U"]; sub(/^file:\/\/(localhost)?/, "", s); out = ""
+        while (match(s, /%[0-9A-Fa-f][0-9A-Fa-f]/)) {
+            out = out substr(s, 1, RSTART - 1)
+            h = toupper(substr(s, RSTART + 1, 2))
+            n = index("0123456789ABCDEF", substr(h, 1, 1)) * 16 + index("0123456789ABCDEF", substr(h, 2, 1)) - 17
+            if (n > 0) out = out sprintf("%c", n)
+            s = substr(s, RSTART + RLENGTH)
+        }
+        printf "%s", out s
+    }'
+}
+
+# Define REQ com a pasta pedida: argumento, depois a seleção do gerenciador de
+# arquivos, depois a pasta atual dele (URI), depois o diretório corrente.
+pick_requested_dir() {
+    REQ=$1
+    [ -n "$REQ" ] || { REQ=${NAUTILUS_SCRIPT_SELECTED_FILE_PATHS:-${CAJA_SCRIPT_SELECTED_FILE_PATHS:-}}; REQ=${REQ%%"$NL"*}; }
+    [ -n "$REQ" ] || REQ=${NAUTILUS_SCRIPT_CURRENT_URI:-${CAJA_SCRIPT_CURRENT_URI:-}}
+    [ -n "$REQ" ] || REQ=$PWD
+    case $REQ in
+        file://*) d=$(decode_uri "$REQ"; printf x); REQ=${d%x} ;;
+    esac
+}
+
+# Caminho absoluto de uma pasta existente (vazio se não for pasta).
+absolute_dir() {
+    case $1 in /*) p=$1 ;; *) p=./$1 ;; esac
+    a=$(cd -- "$p" 2>/dev/null && pwd && printf x) || return 1
+    a=${a%x}
+    printf '%s' "${a%"$NL"}"
+}
+
+find_claude() {
+    c=$(command -v claude 2>/dev/null)
+    case $c in /*) [ -x "$c" ] && { printf '%s\n' "$c"; return 0; } ;; esac
+    for c in "$HOME/.local/bin/claude" "$HOME/.npm-global/bin/claude" "$HOME/.claude/local/claude" \
+             "$HOME/.bun/bin/claude" "$HOME/.volta/bin/claude" "$HOME"/.nvm/versions/node/*/bin/claude \
+             "${NPM_CONFIG_PREFIX:-/nonexistent}/bin/claude" /usr/local/bin/claude /opt/homebrew/bin/claude; do
+        if [ -f "$c" ] && [ -x "$c" ]; then printf '%s\n' "$c"; return 0; fi
+    done
+    return 1
+}
+
+list_terminals() {
+    for t in $TERMINALS; do have "$t" && printf '%s\n' "$t"; done
+    return 0
+}
+
+config_terminal() {
+    f=${XDG_CONFIG_HOME:-$HOME/.config}/claude-aqui/config
+    [ -r "$f" ] || return 0
+    sed -n 's/^terminal=[[:space:]]*\([^[:space:]]*\).*$/\1/p' "$f" | head -n 1
+}
+
+resolve_terminal() {
+    all="xdg-terminal-exec x-terminal-emulator $TERMINALS"
+    cfg=$(config_terminal)
+    if [ -n "$cfg" ] && [ "$cfg" != auto ]; then
+        case " $all " in
+            *" $cfg "*)
+                if have "$cfg"; then printf '%s\n' "$cfg"; return 0; fi
+                echo "Aviso: o terminal configurado ($cfg) não está instalado; usando o automático." >&2 ;;
+            *) echo "Aviso: o terminal configurado ($cfg) não é compatível; usando o automático." >&2 ;;
+        esac
+    fi
+    for t in $all; do
+        if have "$t"; then printf '%s\n' "$t"; return 0; fi
+    done
+    return 1
+}
+
+# Modo interno: roda dentro do terminal.
+run_inside() {
+    pause() { printf '\n%s' "Pressione Enter para fechar..."; IFS= read -r _ || :; exit 1; }
+    dir=$(absolute_dir "$1") || { printf '%s\n' "Selecione uma pasta."; pause; }
+    cd -- "$dir" || { printf '%s\n' "Selecione uma pasta."; pause; }
+    claude=$(find_claude) || {
+        printf '%s\n' "O Claude Code não foi encontrado. Instale-o (https://claude.com/claude-code) e tente de novo."
+        pause
+    }
+    exec "$claude"
+}
+
+# Modo externo: abre o terminal rodando `$self --run PASTA`.
+open_terminal() {
+    pick_requested_dir "$1"
+    dir=$(absolute_dir "$REQ") || fail "Selecione uma pasta."
+    term=$(resolve_terminal) || fail "Nenhum terminal compatível foi encontrado. Instale um (gnome-terminal, konsole, kitty...) ou defina terminal=ID em ~/.config/claude-aqui/config."
+    cd -- "$dir" || fail "Selecione uma pasta."
+    self=$0
+    case $self in /*) ;; */*) self=$PWD/$self ;; *) self=$(command -v -- "$self") ;; esac
+    case $term in
+        gnome-terminal)    exec gnome-terminal "--working-directory=$dir" -- "$self" --run "$dir" ;;
+        konsole)           exec konsole --workdir "$dir" -e "$self" --run "$dir" ;;
+        kitty)             exec kitty --directory "$dir" "$self" --run "$dir" ;;
+        alacritty)         exec alacritty --working-directory "$dir" -e "$self" --run "$dir" ;;
+        xfce4-terminal)    exec xfce4-terminal "--working-directory=$dir" -x "$self" --run "$dir" ;;
+        x-terminal-emulator|xterm) exec "$term" -e "$self" --run "$dir" ;;
+        xdg-terminal-exec) exec xdg-terminal-exec "$self" --run "$dir" ;;
+    esac
+}
+
+case ${1:-} in
+    --find-claude) find_claude ;;
+    --list-terminals) list_terminals ;;
+    --resolve-terminal) resolve_terminal ;;
+    --run) run_inside "${2:-}" ;;
+    -*) fail "Opção desconhecida: $1" ;;
+    *) open_terminal "${1:-}" ;;
+esac
