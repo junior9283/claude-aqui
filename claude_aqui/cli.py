@@ -63,7 +63,7 @@ def _toggle(ctx: Context, target: str, enabled: bool) -> int:
 def _gui() -> int:
     try:
         from .gui import run
-    except ImportError:
+    except (ImportError, ValueError):  # ValueError: typelib do GTK/Adw ausente
         print("A interface gráfica não está disponível; use --status, --enable ou --disable.",
               file=sys.stderr)
         return 1

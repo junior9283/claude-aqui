@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 gi = pytest.importorskip("gi")
@@ -58,14 +60,14 @@ def test_gui_builds_window_from_snapshot(build):
     assert "Não instalado" in win.manager_rows["dolphin"].get_subtitle()
     assert "Já existe" in win.manager_rows["nemo"].get_subtitle()
     assert "Feche o Thunar" in win.manager_rows["thunar"].get_subtitle()
-    assert not win.banner.get_revealed()
+    assert not win.banner.get_reveal_child()
     assert win.terminal_row.get_selected() == 0
     assert win.terminal_row.get_model().get_n_items() == 3
 
 
 def test_banner_quando_claude_ausente(build):
     win = build(make_snapshot(claude_path=None))
-    assert win.banner.get_revealed()
+    assert win.banner.get_reveal_child()
 
 
 def test_terminal_configurado_e_fallback(build):
@@ -99,3 +101,29 @@ def test_troca_de_terminal(build):
     win.terminal_row.set_selected(2)
     win.terminal_row.set_selected(0)
     assert calls == ["konsole", None]
+
+
+def test_remover_tudo_so_age_apos_confirmacao(build, monkeypatch):
+    calls = []
+    monkeypatch.setattr(gui.service, "remove_all", lambda c: calls.append(1))
+    win = build(make_snapshot())
+    win._on_remove_response(Gtk.Window(), Gtk.ResponseType.CANCEL)
+    win._on_remove_response(Gtk.Window(), Gtk.ResponseType.DELETE_EVENT)
+    assert calls == []
+    win._on_remove_response(Gtk.Window(), Gtk.ResponseType.ACCEPT)
+    assert calls == [1]
+
+
+def test_remover_tudo_abre_dialogo_sem_remover(build, monkeypatch):
+    calls = []
+    monkeypatch.setattr(gui.service, "remove_all", lambda c: calls.append(1))
+    win = build(make_snapshot())
+    win._on_remove_clicked(None)
+    assert calls == []
+
+
+def test_gui_nao_usa_apis_posteriores_ao_libadwaita_1_1():
+    source = Path(gui.__file__).read_text(encoding="utf-8")
+    proibidas = ("Adw.Banner", "Adw.SwitchRow", "Adw.AlertDialog", "Adw.MessageDialog",
+                 "Adw.ResponseAppearance", "Adw.ToolbarView", "Gtk.AlertDialog")
+    assert [n for n in proibidas if n in source] == []

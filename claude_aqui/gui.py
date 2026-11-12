@@ -1,6 +1,7 @@
 """Interface gráfica (GTK4 + libadwaita).
 
-Usa só APIs do libadwaita 1.1 (Ubuntu 22.04), exceto `Adw.Banner` (1.3).
+Usa só APIs do libadwaita 1.1 / GTK 4.6 (Ubuntu 22.04); um teste varre o código
+em busca de APIs mais novas.
 """
 from __future__ import annotations
 
@@ -27,7 +28,7 @@ _STATUS_SUBTITLE = {
 
 
 class ManagerRowWidget(Adw.ActionRow):
-    """Linha com um Gtk.Switch (equivalente ao Adw.SwitchRow, que é 1.4+)."""
+    """Linha com um Gtk.Switch (o switch-row do Adw só existe na 1.4+)."""
 
     def __init__(self, row: service.ManagerRow):
         super().__init__(title=row.name)
@@ -62,7 +63,15 @@ class MainWindow(Adw.ApplicationWindow):
         snap = snapshot_fn(ctx)
         page = Adw.PreferencesPage()
 
-        self.banner = Adw.Banner(title="Claude Code não encontrado. Instale-o e reabra este app.")
+        # Aviso próprio (o widget de banner do Adw é 1.3+): ícone + texto numa Revealer.
+        warning = Gtk.Box(spacing=8, margin_top=8, margin_bottom=8,
+                          margin_start=12, margin_end=12)
+        warning.add_css_class("warning")
+        warning.append(Gtk.Image.new_from_icon_name("dialog-warning-symbolic"))
+        warning.append(Gtk.Label(
+            label="Claude Code não encontrado. Instale-o e reabra este app.",
+            wrap=True, xalign=0, hexpand=True))
+        self.banner = Gtk.Revealer(child=warning)
 
         managers = Adw.PreferencesGroup(title="Gerenciadores de arquivos")
         for row in snap.managers:
@@ -101,7 +110,7 @@ class MainWindow(Adw.ApplicationWindow):
     def _apply(self, snap: service.AppSnapshot) -> None:
         self._refreshing = True
         try:
-            self.banner.set_revealed(snap.claude_path is None)
+            self.banner.set_reveal_child(snap.claude_path is None)
             for row in snap.managers:
                 self.manager_rows[row.id].update(row)
             self._terminals = snap.terminals
@@ -140,20 +149,22 @@ class MainWindow(Adw.ApplicationWindow):
         service.set_terminal(self.ctx, self._terminals[index - 1] if index > 0 else None)
 
     def _on_remove_clicked(self, _button) -> None:
-        dialog = Adw.MessageDialog(
-            transient_for=self, heading="Remover tudo?",
-            body="Isso remove os itens de menu, o atalho e a configuração criados pelo Claude Aqui.",
+        dialog = Gtk.MessageDialog(
+            transient_for=self, modal=True, message_type=Gtk.MessageType.WARNING,
+            text="Remover tudo?",
+            secondary_text="Isso remove os itens de menu, o atalho e a configuração "
+                           "criados pelo Claude Aqui.",
         )
-        dialog.add_response("cancel", "Cancelar")
-        dialog.add_response("remove", "Remover tudo")
-        dialog.set_response_appearance("remove", Adw.ResponseAppearance.DESTRUCTIVE)
-        dialog.set_default_response("cancel")
-        dialog.set_close_response("cancel")
+        dialog.add_button("Cancelar", Gtk.ResponseType.CANCEL)
+        dialog.add_button("Remover tudo", Gtk.ResponseType.ACCEPT).add_css_class(
+            "destructive-action")
+        dialog.set_default_response(Gtk.ResponseType.CANCEL)
         dialog.connect("response", self._on_remove_response)
         dialog.present()
 
-    def _on_remove_response(self, _dialog, response: str) -> None:
-        if response != "remove":
+    def _on_remove_response(self, dialog, response: int) -> None:
+        dialog.destroy()
+        if response != Gtk.ResponseType.ACCEPT:
             return
         service.remove_all(self.ctx)
         self.refresh()

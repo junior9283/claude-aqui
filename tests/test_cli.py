@@ -82,6 +82,21 @@ def test_cli_without_gui_returns_1(env, capsys, monkeypatch):
     assert "interface gráfica" in capsys.readouterr().err
 
 
+def test_cli_without_gui_typelib_returns_1(env, capsys, monkeypatch):
+    import builtins
+    real_import = builtins.__import__
+
+    def fake(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "gui" or name.endswith(".gui"):
+            raise ValueError("Namespace Gtk not available")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.delitem(sys.modules, "claude_aqui.gui", raising=False)
+    monkeypatch.setattr(builtins, "__import__", fake)
+    assert cli.main([]) == 1
+    assert "interface gráfica" in capsys.readouterr().err
+
+
 def test_cli_disable_works_when_binary_is_gone(env, capsys):
     ctx, fakebin = env
     write_executable(fakebin / "nemo", "exit 0\n")
