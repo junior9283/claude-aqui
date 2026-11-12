@@ -95,7 +95,8 @@ def test_nemo_background_action_uses_selection_none(ctx):
     NemoManager(ctx).enable()
     bg = read_ini(ctx.data_dir / "nemo/actions/claude-aqui-bg.nemo_action")["Nemo Action"]
     assert bg["Selection"] == "none"
-    assert "Extensions" not in bg
+    # sample.nemo_action do Nemo: "EITHER EXTENSIONS OR MIMETYPES IS REQUIRED"
+    assert bg["Extensions"] == "any;"
     check_exec(ctx, bg["Exec"], "%P")
 
 

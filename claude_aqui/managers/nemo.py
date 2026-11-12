@@ -18,8 +18,9 @@ class NemoManager(FileManager):
 
     def render(self, entry: Path) -> tuple[str, int]:
         if entry.name == "claude-aqui-bg.nemo_action":
-            # Sem seleção: %P é a pasta aberta no momento.
-            selection, extensions, code = "none", "", "%P"
+            # Sem seleção: %P é a pasta aberta no momento. O Nemo exige Extensions ou
+            # Mimetypes (sample.nemo_action), senão descarta a ação.
+            selection, extensions, code = "none", "Extensions=any;\n", "%P"
         else:
             selection, extensions, code = "s", "Extensions=dir\n", "%F"
         text = (
