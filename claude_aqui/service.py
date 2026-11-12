@@ -83,8 +83,10 @@ def remove_all(ctx: Context) -> None:
             manager.disable()
         except (ConflictError, OSError):
             pass
-    ctx.stub_path.unlink(missing_ok=True)
+    if is_managed(ctx.stub_path):  # nunca apaga arquivo sem a nossa marca
+        ctx.stub_path.unlink()
     app_config = ctx.config_dir / "claude-aqui"
+    # O arquivo de config não tem marca: o caminho é exclusivamente nosso.
     (app_config / "config").unlink(missing_ok=True)
     for directory in (ctx.stub_path.parent, app_config):
         try:

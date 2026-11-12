@@ -114,3 +114,10 @@ def test_remove_all_keeps_foreign_files_in_our_dirs(ctx):
     service.remove_all(ctx)
     assert foreign.read_text() == "alheio"
     assert not (foreign.parent / "config").exists()
+
+
+def test_remove_all_keeps_unmarked_stub(ctx):
+    ctx.stub_path.parent.mkdir(parents=True)
+    ctx.stub_path.write_text("alheio")
+    service.remove_all(ctx)
+    assert ctx.stub_path.read_text() == "alheio"

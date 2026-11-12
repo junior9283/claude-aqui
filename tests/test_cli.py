@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 
 from claude_aqui import cli, launcher, service
@@ -74,6 +76,18 @@ def test_cli_remove_all(env, capsys):
     assert not ctx.stub_path.exists()
 
 
-def test_cli_without_gui_returns_1(env, capsys):
+def test_cli_without_gui_returns_1(env, capsys, monkeypatch):
+    monkeypatch.setitem(sys.modules, "claude_aqui.gui", None)
     assert cli.main([]) == 1
     assert "interface gráfica" in capsys.readouterr().err
+
+
+def test_cli_disable_works_when_binary_is_gone(env, capsys):
+    ctx, fakebin = env
+    write_executable(fakebin / "nemo", "exit 0\n")
+    assert cli.main(["--enable", "nemo"]) == 0
+    entries = [e for m in service.all_managers(ctx) if m.id == "nemo" for e in m.entries()]
+    assert all(e.exists() for e in entries)
+    (fakebin / "nemo").unlink()
+    assert cli.main(["--disable", "nemo"]) == 0
+    assert not any(e.exists() for e in entries)

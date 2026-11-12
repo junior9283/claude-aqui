@@ -45,7 +45,7 @@ def _toggle(ctx: Context, target: str, enabled: bool) -> int:
             return 2
     code = 0
     for m in managers:
-        if not m.is_installed():
+        if enabled and not m.is_installed():
             if target == "all":
                 continue
             print(f"{m.name} não está instalado.", file=sys.stderr)
