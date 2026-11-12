@@ -15,7 +15,7 @@ NL='
 '
 TITLE="Claude Aqui"
 # Terminais com flags confirmados (--help/man). Ordem = prioridade automática.
-TERMINALS="gnome-terminal konsole kitty alacritty xfce4-terminal mate-terminal foot tilix terminator lxterminal qterminal kgx xterm"
+TERMINALS="gnome-terminal ptyxis konsole kitty alacritty xfce4-terminal mate-terminal foot tilix terminator lxterminal qterminal kgx xterm"
 
 # Prefixo dos locais absolutos do claude (vazio em produção; os testes o trocam).
 ROOT=${CLAUDE_AQUI_ROOT:-}
@@ -211,6 +211,9 @@ open_terminal() {
     case $self in /*) ;; */*) self=$PWD/$self ;; *) self=$(command -v -- "$self") ;; esac
     case $term in
         gnome-terminal)    run_terminal gnome-terminal "--working-directory=$dir" -- "$self" --run "$dir" ;;
+        # ptyxis: flags confirmados com --help (Fedora 44); o argv após -- fica de fora
+        # do caminho: a pasta vai por --working-directory e pelo cwd herdado.
+        ptyxis)            run_terminal ptyxis --new-window "--working-directory=$dir" -- "$self" --run ;;
         konsole)           run_terminal konsole --workdir "$dir" -e "$self" --run "$dir" ;;
         kitty)             run_terminal kitty --directory "$dir" "$self" --run "$dir" ;;
         alacritty)         run_terminal alacritty --working-directory "$dir" -e "$self" --run "$dir" ;;

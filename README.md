@@ -36,8 +36,8 @@ Requer **Python 3.9 ou mais novo** (o código usa `ET.indent`, `unlink(missing_o
 
 Terminais reconhecidos (modo automático): `xdg-terminal-exec`, `x-terminal-emulator`, o
 terminal padrão do desktop (gsettings no GNOME, kreadconfig no KDE) e, por prioridade,
-gnome-terminal, konsole, kitty, alacritty, xfce4-terminal, mate-terminal, foot, tilix,
-terminator, lxterminal, qterminal, kgx (GNOME Console) e xterm. Ptyxis, WezTerm e outros ainda
+gnome-terminal, ptyxis, konsole, kitty, alacritty, xfce4-terminal, mate-terminal, foot, tilix,
+terminator, lxterminal, qterminal, kgx (GNOME Console) e xterm. WezTerm e outros ainda
 não têm flags confirmados e ficam de fora (use `x-terminal-emulator`/`xdg-terminal-exec`). Se o terminal falhar ao abrir, o
 lançador mostra um aviso em vez de falhar em silêncio.
 

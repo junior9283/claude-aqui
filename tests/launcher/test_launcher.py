@@ -609,6 +609,7 @@ NEW_TERMINALS = [
     ("foot", ["-D", "{d}"], True),
     ("terminator", ["--working-directory={d}", "-x"], False),
     ("lxterminal", ["--working-directory={d}", "-e"], False),
+    ("ptyxis", ["--new-window", "--working-directory={d}", "--"], False),
 ]
 STRING_E_TERMINALS = [
     # -e recebe UMA string que o terminal reparte: o caminho nunca entra nela
