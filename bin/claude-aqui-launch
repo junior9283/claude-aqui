@@ -124,8 +124,30 @@ resolve_terminal() {
     return 1
 }
 
+# Roda o terminal (sem exec) e espera. Se ele sair com status != 0 sem que o modo
+# interno tenha chegado a iniciar (marcador criado por run_inside), avisa o
+# usuário. Terminais que daemonizam devolvem 0 e um `claude` que sai com erro
+# depois de iniciar não contam como falha do terminal.
+run_terminal() {
+    state=$(mktemp -d "${TMPDIR:-/tmp}/claude-aqui.XXXXXX") || fail "Não foi possível criar um diretório temporário."
+    CLAUDE_AQUI_STARTED=$state/started
+    export CLAUDE_AQUI_STARTED
+    "$@"
+    rc=$?
+    started=
+    [ -e "$state/started" ] && started=1
+    rm -f -- "$state/started"
+    rmdir -- "$state" 2>/dev/null
+    if [ "$rc" -ne 0 ] && [ -z "$started" ]; then
+        fail "O terminal ($term) não pôde ser aberto (código $rc)."
+    fi
+    exit 0
+}
+
 # Modo interno: roda dentro do terminal.
 run_inside() {
+    [ -n "${CLAUDE_AQUI_STARTED:-}" ] && : > "$CLAUDE_AQUI_STARTED" 2>/dev/null
+    unset CLAUDE_AQUI_STARTED
     pause() { printf '\n%s' "Pressione Enter para fechar..."; IFS= read -r _ || :; exit 1; }
     dir=$(absolute_dir "${1:-$PWD}") || { printf '%s\n' "Selecione uma pasta."; pause; }
     cd -- "$dir" || { printf '%s\n' "Selecione uma pasta."; pause; }
@@ -145,15 +167,15 @@ open_terminal() {
     self=$0
     case $self in /*) ;; */*) self=$PWD/$self ;; *) self=$(command -v -- "$self") ;; esac
     case $term in
-        gnome-terminal)    exec gnome-terminal "--working-directory=$dir" -- "$self" --run "$dir" ;;
-        konsole)           exec konsole --workdir "$dir" -e "$self" --run "$dir" ;;
-        kitty)             exec kitty --directory "$dir" "$self" --run "$dir" ;;
-        alacritty)         exec alacritty --working-directory "$dir" -e "$self" --run "$dir" ;;
-        xfce4-terminal)    exec xfce4-terminal "--working-directory=$dir" -x "$self" --run "$dir" ;;
+        gnome-terminal)    run_terminal gnome-terminal "--working-directory=$dir" -- "$self" --run "$dir" ;;
+        konsole)           run_terminal konsole --workdir "$dir" -e "$self" --run "$dir" ;;
+        kitty)             run_terminal kitty --directory "$dir" "$self" --run "$dir" ;;
+        alacritty)         run_terminal alacritty --working-directory "$dir" -e "$self" --run "$dir" ;;
+        xfce4-terminal)    run_terminal xfce4-terminal "--working-directory=$dir" -x "$self" --run "$dir" ;;
         # Sem flags de lista confiáveis (o -e pode juntar o argv numa string de
         # shell): o caminho NÃO vai como argumento; --run usa o cwd herdado.
-        x-terminal-emulator|xterm) exec "$term" -e "$self" --run ;;
-        xdg-terminal-exec) exec xdg-terminal-exec "$self" --run ;;
+        x-terminal-emulator|xterm) run_terminal "$term" -e "$self" --run ;;
+        xdg-terminal-exec) run_terminal xdg-terminal-exec "$self" --run ;;
     esac
 }
 

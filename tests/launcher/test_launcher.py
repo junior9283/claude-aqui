@@ -392,3 +392,51 @@ def test_string_joining_terminal_cannot_reinterpret_path(launcher_env, tmp_path,
     assert f"CLAUDE<{folder}>\n" in log.read_text()
     assert not (base / "X").exists()
     assert not (folder / "X").exists()
+
+
+# ---------- terminal que falha ao abrir (item 2) ----------
+
+def test_terminal_that_exits_1_without_running_inner_reports_error(launcher_env, tmp_path):
+    env, fakebin, _ = launcher_env
+    write_executable(fakebin / "kitty", "exit 1\n")
+    folder = tmp_path / "p"
+    folder.mkdir()
+    r = run(env, str(folder))
+    assert r.returncode == 1
+    assert "kitty" in r.stderr and "terminal" in r.stderr.lower()
+
+
+def test_terminal_that_runs_inner_and_then_exits_1_is_not_a_launcher_error(launcher_env, tmp_path):
+    env, fakebin, log = launcher_env
+    make_fake_claude(tmp_path / "home" / ".local" / "bin" / "claude", log)
+    # terminal falso: roda o modo interno (que cria o marcador) e depois sai com 1
+    write_executable(
+        fakebin / "kitty",
+        f'while [ "$1" != "--run" ]; do shift; done; /bin/sh "{LAUNCHER}" "$@"; exit 1\n',
+    )
+    folder = tmp_path / "p"
+    folder.mkdir()
+    r = run(env, str(folder))
+    assert r.returncode == 0, r.stderr
+    assert r.stderr == ""
+    assert f"CLAUDE<{folder}>" in log.read_text()
+
+
+def test_daemonizing_terminal_returning_0_fast_is_not_an_error(launcher_env, tmp_path):
+    env, fakebin, _ = launcher_env
+    write_executable(fakebin / "kitty", "exit 0\n")
+    folder = tmp_path / "p"
+    folder.mkdir()
+    r = run(env, str(folder))
+    assert r.returncode == 0 and r.stderr == ""
+
+
+def test_state_dir_is_cleaned_up(launcher_env, tmp_path):
+    env, fakebin, _ = launcher_env
+    tmp = tmp_path / "tmpdir"
+    tmp.mkdir()
+    write_executable(fakebin / "kitty", "exit 1\n")
+    folder = tmp_path / "p"
+    folder.mkdir()
+    run(env, str(folder), extra_env={"TMPDIR": str(tmp)})
+    assert list(tmp.iterdir()) == []
