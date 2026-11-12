@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Claude Aqui
+Comment=Adiciona "Abrir Claude Code aqui" ao menu do gerenciador de arquivos
+Categories=Utility;
+Exec=claude-aqui
+Icon=claude-aqui
+Terminal=false
+StartupNotify=true
