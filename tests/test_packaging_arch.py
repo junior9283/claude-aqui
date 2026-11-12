@@ -9,9 +9,13 @@ VERSION = "9.9.9"
 
 
 @pytest.fixture(scope="module")
-def arch_src():
-    subprocess.run(["make", "arch-src", f"VERSION={VERSION}"], cwd=ROOT, check=True, capture_output=True)
-    return ROOT / "build" / "arch"
+def arch_src(tmp_path_factory):
+    # DISTDIR e ARCHDIR fora do repositório: a suíte não deixa dist/ nem build/ para trás
+    out = tmp_path_factory.mktemp("arch")
+    archdir = out / "arch"
+    subprocess.run(["make", "arch-src", f"VERSION={VERSION}", f"DISTDIR={out / 'dist'}",
+                    f"ARCHDIR={archdir}"], cwd=ROOT, check=True, capture_output=True)
+    return archdir
 
 
 def test_arch_src_gera_pkgbuild_com_versao(arch_src):
