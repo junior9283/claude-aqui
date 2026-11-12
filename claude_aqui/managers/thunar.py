@@ -1,6 +1,7 @@
 """Thunar: ação personalizada em ~/.config/Thunar/uca.xml."""
 from __future__ import annotations
 
+import os
 import shutil
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -15,6 +16,24 @@ BACKUP_SUFFIX = ".claude-aqui.bak"
 def _dq(value: str) -> str:
     """Aspas duplas estilo shell (Thunar interpreta o comando com g_shell_parse_argv)."""
     return '"' + "".join("\\" + c if c in '\\"$`' else c for c in value) + '"'
+
+
+def system_uca_candidates() -> list[Path]:
+    """uca.xml do sistema, na ordem de prioridade de $XDG_CONFIG_DIRS (padrão /etc/xdg)."""
+    dirs = os.environ.get("XDG_CONFIG_DIRS") or "/etc/xdg"
+    return [Path(d) / "Thunar" / "uca.xml" for d in dirs.split(":") if d]
+
+
+def _parse_actions(path: Path) -> ET.Element:
+    """Raiz <actions> de um uca.xml, com comentários; ConflictError se inválido."""
+    parser = ET.XMLParser(target=ET.TreeBuilder(insert_comments=True))
+    try:
+        root = ET.parse(path, parser=parser).getroot()
+    except (ET.ParseError, OSError, UnicodeDecodeError) as exc:
+        raise ConflictError(path) from exc
+    if root.tag != "actions":
+        raise ConflictError(path)
+    return root
 
 
 class ThunarManager(FileManager):
@@ -54,14 +73,18 @@ class ThunarManager(FileManager):
         """Raiz do uca.xml (None se não existe); malformado -> ConflictError."""
         if not self.uca.exists():
             return None
-        parser = ET.XMLParser(target=ET.TreeBuilder(insert_comments=True))
-        try:
-            root = ET.parse(self.uca, parser=parser).getroot()
-        except (ET.ParseError, OSError, UnicodeDecodeError) as exc:
-            raise ConflictError(self.uca) from exc
-        if root.tag != "actions":
-            raise ConflictError(self.uca)
-        return root
+        return _parse_actions(self.uca)
+
+    @staticmethod
+    def _system_seed() -> ET.Element | None:
+        """Ações padrão do sistema, para não escondê-las ao criar o uca.xml do usuário."""
+        for path in system_uca_candidates():
+            if path.is_file():
+                try:
+                    return _parse_actions(path)
+                except ConflictError:
+                    return None  # semente inválida: ignora (nunca mexemos nela)
+        return None
 
     @staticmethod
     def _ours(root: ET.Element) -> list[ET.Element]:
@@ -89,7 +112,9 @@ class ThunarManager(FileManager):
     def enable(self) -> None:
         root = self._load()
         if root is None:
-            root = ET.Element("actions")
+            root = self._system_seed()
+            if root is None:
+                root = ET.Element("actions")
         self.ctx.ensure_stub()
         new = self._build_action()
         ours = self._ours(root)

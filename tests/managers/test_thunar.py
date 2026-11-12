@@ -1,10 +1,11 @@
 import shlex
+from pathlib import Path
 import xml.etree.ElementTree as ET
 
 import pytest
 
 from claude_aqui.base import ConflictError, Context, Status
-from claude_aqui.managers.thunar import ThunarManager
+from claude_aqui.managers.thunar import ThunarManager, system_uca_candidates
 
 USER_ACTION = (
     "<action><icon>x</icon><name>Minha ação</name><unique-id>user-1</unique-id>"
@@ -139,3 +140,78 @@ def test_command_quotes_stub_with_space(tmp_path, monkeypatch):
     m.enable()
     command = ET.parse(m.entries()[0]).getroot().findtext("action/command")
     assert shlex.split(command) == [str(m.ctx.stub_path), "%f"]
+
+
+# ---------- semente do sistema (XDG_CONFIG_DIRS) ----------
+
+SYSTEM_ACTION = USER_ACTION.replace("user-1", "sys-1").replace("Minha ação", "Abrir terminal aqui")
+
+
+@pytest.fixture
+def sysdir(tmp_path, monkeypatch):
+    d = tmp_path / "etc-xdg"
+    monkeypatch.setenv("XDG_CONFIG_DIRS", f"{tmp_path / 'vazio'}:{d}")
+    return d / "Thunar" / "uca.xml"
+
+
+def write_system(path, body=SYSTEM_ACTION):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f'<?xml version="1.0" encoding="UTF-8"?>\n<actions>{body}</actions>\n', encoding="utf-8")
+
+
+def test_enable_seeds_new_uca_from_system_file(mgr, uca, sysdir):
+    write_system(sysdir)
+    sys_before = sysdir.read_text(encoding="utf-8")
+    mgr.enable()
+    assert ids(uca) == ["sys-1", "claude-aqui-1"]
+    assert sysdir.read_text(encoding="utf-8") == sys_before  # nunca mexe no arquivo do sistema
+    assert not uca.with_name("uca.xml.claude-aqui.bak").exists()
+
+
+def test_enable_without_system_seed_creates_only_our_action(mgr, uca, sysdir):
+    mgr.enable()
+    assert ids(uca) == ["claude-aqui-1"]
+
+
+def test_disable_keeps_seeded_system_actions(mgr, uca, sysdir):
+    write_system(sysdir)
+    mgr.enable()
+    mgr.disable()
+    assert uca.exists()
+    assert ids(uca) == ["sys-1"]
+    assert mgr.status() is Status.DISABLED
+
+
+def test_seed_default_dir_is_etc_xdg(monkeypatch):
+    monkeypatch.delenv("XDG_CONFIG_DIRS", raising=False)
+    assert system_uca_candidates() == [Path("/etc/xdg/Thunar/uca.xml")]
+    monkeypatch.setenv("XDG_CONFIG_DIRS", "/a::/b")
+    assert system_uca_candidates() == [Path("/a/Thunar/uca.xml"), Path("/b/Thunar/uca.xml")]
+
+
+def test_malformed_system_seed_is_ignored(mgr, uca, sysdir):
+    sysdir.parent.mkdir(parents=True)
+    sysdir.write_text("<actions><action>", encoding="utf-8")
+    mgr.enable()
+    assert ids(uca) == ["claude-aqui-1"]
+
+
+def test_existing_user_file_is_never_reseeded(mgr, uca, sysdir):
+    write_system(sysdir)
+    write_uca(uca, USER_ACTION)
+    mgr.enable()
+    assert ids(uca) == ["user-1", "claude-aqui-1"]
+
+
+# ---------- arquivo do usuário vazio/só comentários é protegido (item 10) ----------
+
+@pytest.mark.parametrize("body", ["", "<!-- minhas ações vão aqui -->"], ids=["vazio", "comentario"])
+def test_preexisting_empty_user_uca_is_not_deleted_and_backup_kept(mgr, uca, body):
+    write_uca(uca, body)
+    original = uca.read_text(encoding="utf-8")
+    bak = uca.with_name("uca.xml.claude-aqui.bak")
+    mgr.enable()
+    mgr.disable()
+    assert uca.exists()
+    assert ids(uca) == []
+    assert bak.read_text(encoding="utf-8") == original

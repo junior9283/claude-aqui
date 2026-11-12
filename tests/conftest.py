@@ -54,3 +54,9 @@ def make_fake_terminal(fakebin: Path, log: Path, name: str) -> None:
 
 def make_fake_claude(path: Path, log: Path) -> None:
     write_executable(path, f'printf "CLAUDE<%s>\\n" "$PWD" >> "{log}"\n')
+
+
+@pytest.fixture(autouse=True)
+def _sem_config_do_sistema(tmp_path, monkeypatch):
+    """Os testes não podem depender do /etc/xdg da máquina (semente do uca.xml do Thunar)."""
+    monkeypatch.setenv("XDG_CONFIG_DIRS", str(tmp_path / "xdg-sistema-inexistente"))
