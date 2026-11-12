@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 
 ACTION_NAME = "Abrir Claude Code aqui"
-ICON = "utilities-terminal"
+ICON = "claude-aqui"
 
 
 def exec_line(stub: object, code: str) -> str:

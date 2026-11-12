@@ -7,6 +7,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from claude_aqui.base import ConflictError, FileManager, Status, atomic_write
+from claude_aqui.managers._desktop import ICON
 
 ID_PREFIX = "claude-aqui-"
 ACTION_NAME = "Abrir Claude Code aqui"
@@ -61,7 +62,7 @@ class ThunarManager(FileManager):
     def _build_action(self) -> ET.Element:
         action = ET.Element("action")
         for tag, text in (
-            ("icon", "utilities-terminal"),
+            ("icon", ICON),
             ("name", ACTION_NAME),
             ("unique-id", ID_PREFIX + "1"),
             ("command", f"{_dq(str(self.ctx.stub_path))} %f"),

@@ -1,7 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <path d="M10 36a8 8 0 0 1 8-8h28l10 12h54a8 8 0 0 1 8 8v52a8 8 0 0 1-8 8H18a8 8 0 0 1-8-8z" fill="#f0a35e"/>
-  <rect x="26" y="52" width="76" height="52" rx="6" fill="#2b2d33"/>
-  <path d="M38 66l14 10-14 10" fill="none" stroke="#f5f5f5" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M60 90h26" stroke="#f5f5f5" stroke-width="6" stroke-linecap="round"/>
+  <rect x="8" y="8" width="112" height="112" rx="26" fill="#d97757"/>
+  <g stroke="#fff" stroke-width="9" stroke-linecap="round">
+    <path d="M24.0 64.0L104.0 64.0"/>
+    <path d="M36.3 52.5L91.7 75.5"/>
+    <path d="M35.7 35.7L92.3 92.3"/>
+    <path d="M52.5 36.3L75.5 91.7"/>
+    <path d="M64.0 24.0L64.0 104.0"/>
+    <path d="M75.5 36.3L52.5 91.7"/>
+    <path d="M92.3 35.7L35.7 92.3"/>
+    <path d="M91.7 52.5L36.3 75.5"/>
+  </g>
 </svg>
