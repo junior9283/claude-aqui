@@ -36,4 +36,7 @@ dist:
 	mkdir -p "$(DISTDIR)"
 	tar czf "$(DISTDIR)/claude-aqui-$(VERSION).tar.gz" \
 		--transform 's|^|claude-aqui-$(VERSION)/|' \
-		bin $(PKG_FILES) data Makefile README.md
+		bin $(PKG_FILES) data Makefile README.md $(wildcard packaging)
+
+# alvos de empacotamento (deb, rpm, arch): um .mk por formato
+-include packaging/*/*.mk
