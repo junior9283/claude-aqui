@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Testa o pacote (deb, rpm ou arch) em contêineres limpos.
 #
-#   scripts/test-packages.sh <deb|rpm|arch>
+#   scripts/test-packages.sh <deb|rpm|arch> [IMAGEM]   (IMAGEM limita o teste a uma imagem)
 #
 # Em cada imagem: instala as dependências de build, gera o pacote com os alvos do Makefile,
 # instala, cria um usuário comum com executáveis falsos dos seis gerenciadores e confere
@@ -17,8 +17,9 @@ case $FORMAT in
     deb) IMAGES="docker.io/library/debian:12 docker.io/library/ubuntu:22.04" ;;
     rpm) IMAGES="registry.fedoraproject.org/fedora:latest registry.opensuse.org/opensuse/tumbleweed:latest" ;;
     arch) IMAGES="docker.io/library/archlinux:latest" ;;
-    *) echo "uso: $0 <deb|rpm|arch>" >&2; exit 2 ;;
+    *) echo "uso: $0 <deb|rpm|arch> [IMAGEM]" >&2; exit 2 ;;
 esac
+IMAGES=${2:-$IMAGES}
 
 if command -v podman >/dev/null 2>&1; then ENGINE=podman
 elif command -v docker >/dev/null 2>&1; then ENGINE=docker
@@ -56,6 +57,15 @@ rpm)
     # Fedora usa dnf; openSUSE (Leap 16+/Tumbleweed) usa zypper e resolve as typelibs.
     if command -v zypper >/dev/null 2>&1; then
         step "dependências de build (zypper)"
+        # Só os repositórios oss e update bastam; o espelho às vezes derruba a conexão: tenta de novo.
+        for r in repo-non-oss repo-openh264 repo-debug repo-debug-non-oss repo-debug-update repo-source; do
+            zypper -n modifyrepo --disable "$r" >/dev/null 2>&1 || true
+        done
+        for attempt in 1 2 3 4; do
+            zypper -n --gpg-auto-import-keys refresh >/dev/null 2>&1 && break
+            [ "$attempt" -lt 4 ] || { echo "zypper refresh falhou 4 vezes (rede/espelho)" >&2; exit 1; }
+            sleep 10
+        done
         zypper -n --gpg-auto-import-keys install --no-recommends make rpm-build tar gzip shadow util-linux util-linux-systemd gawk findutils grep >/dev/null
         step "make rpm"
         make rpm >/dev/null
