@@ -15,7 +15,7 @@ NL='
 '
 TITLE="Claude Aqui"
 # Terminais com flags confirmados (--help/man). Ordem = prioridade automática.
-TERMINALS="gnome-terminal konsole kitty alacritty xfce4-terminal mate-terminal foot tilix terminator lxterminal qterminal xterm"
+TERMINALS="gnome-terminal konsole kitty alacritty xfce4-terminal mate-terminal foot tilix terminator lxterminal qterminal kgx xterm"
 
 # Prefixo dos locais absolutos do claude (vazio em produção; os testes o trocam).
 ROOT=${CLAUDE_AQUI_ROOT:-}
@@ -224,6 +224,7 @@ open_terminal() {
         # -e recebe uma única string que o terminal reparte: só o lançador (entre
         # aspas) vai nela; a pasta vai pelo flag de diretório e pelo cwd herdado.
         tilix)             run_terminal tilix "--working-directory=$dir" -e "$(shq "$self") --run" ;;
+        kgx)               run_terminal kgx "--working-directory=$dir" -e "$(shq "$self") --run" ;;
         qterminal)         run_terminal qterminal -w "$dir" -e "$(shq "$self") --run" ;;
         # Sem flags de lista confiáveis (o -e pode juntar o argv numa string de
         # shell): o caminho NÃO vai como argumento; --run usa o cwd herdado.

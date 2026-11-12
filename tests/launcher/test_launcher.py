@@ -614,6 +614,7 @@ STRING_E_TERMINALS = [
     # -e recebe UMA string que o terminal reparte: o caminho nunca entra nela
     ("tilix", ["--working-directory={d}", "-e"]),
     ("qterminal", ["-w", "{d}", "-e"]),
+    ("kgx", ["--working-directory={d}", "-e"]),
 ]
 
 
