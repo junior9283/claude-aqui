@@ -17,8 +17,13 @@ Observações importantes:
   mostra "Selecione uma pasta." e não faz nada.
 - **Thunar (a validar):** a ação personalizada usa `%f`; ainda não foi confirmado que `%f`
   funcione no fundo da pasta (clique no espaço vazio). Validar em um Thunar real.
-- **Nemo e libfm/PCManFM (a validar):** as chaves usadas nos arquivos `.nemo_action` e de
-  menu do libfm ainda precisam ser confirmadas em um gerenciador real.
+- **Nemo:** as chaves foram conferidas com o `sample.nemo_action` do Nemo 6.x (a ação de
+  fundo usa `Selection=none` e `Extensions=any;`, pois o Nemo exige `Extensions` ou
+  `Mimetypes`); falta só ver o item no menu de um Nemo real.
+- **PCManFM-Qt/libfm (a validar):** as chaves do menu do libfm ainda precisam ser
+  confirmadas em um gerenciador real.
+- **Thunar:** ao criar o `uca.xml` do usuário, o app parte das ações padrão do sistema
+  (`Thunar/uca.xml` em `$XDG_CONFIG_DIRS`, padrão `/etc/xdg`) para não escondê-las.
 - Nos demais gerenciadores o item aparece só em pastas e no fundo de pasta aberta.
 
 ## Distribuições-alvo
