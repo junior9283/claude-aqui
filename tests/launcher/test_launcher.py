@@ -474,3 +474,127 @@ def test_gnome_falls_back_to_kreadconfig_when_gsettings_is_empty(launcher_env):
     make_fake_desktop_tool(fakebin, "kreadconfig5", "konsole")
     r = run(env, "--resolve-terminal", extra_env={"XDG_CURRENT_DESKTOP": "GNOME"})
     assert r.stdout.strip() == "konsole"
+
+
+# ---------- --resolve-terminal --auto (item 11) ----------
+
+def test_resolve_terminal_auto_ignores_configured_terminal(launcher_env, tmp_path):
+    env, fakebin, log = launcher_env
+    make_fake_terminal(fakebin, log, "xterm")
+    make_fake_terminal(fakebin, log, "kitty")
+    cfg = tmp_path / "home" / ".config" / "claude-aqui"
+    cfg.mkdir(parents=True)
+    (cfg / "config").write_text("terminal=xterm\n")
+    assert run(env, "--resolve-terminal").stdout.strip() == "xterm"
+    r = run(env, "--resolve-terminal", "--auto")
+    assert r.stdout.strip() == "kitty"
+    assert r.stderr == ""
+
+
+def test_resolve_terminal_auto_no_warning_for_uninstalled_choice(launcher_env, tmp_path):
+    env, fakebin, log = launcher_env
+    make_fake_terminal(fakebin, log, "kitty")
+    cfg = tmp_path / "home" / ".config" / "claude-aqui"
+    cfg.mkdir(parents=True)
+    (cfg / "config").write_text("terminal=foot\n")
+    r = run(env, "--resolve-terminal", "--auto")
+    assert r.stdout.strip() == "kitty" and r.stderr == ""
+
+
+# ---------- marcador de "terminal iniciou": sem seguir symlink (item 2, revisão de segurança) ----------
+
+def _state_dir(tmp_path, mode=0o700, name="claude-aqui.AbC123"):
+    d = tmp_path / "estado" / name
+    d.mkdir(parents=True)
+    d.chmod(mode)
+    return d
+
+
+def _run_inner_with_marker(launcher_env, tmp_path, marker):
+    env, _, log = launcher_env
+    make_fake_claude(tmp_path / "home" / ".local" / "bin" / "claude", log)
+    folder = tmp_path / "proj"
+    folder.mkdir(exist_ok=True)
+    r = run(env, "--run", str(folder), extra_env={"CLAUDE_AQUI_STARTED": str(marker)})
+    assert r.returncode == 0, r.stderr
+    assert f"CLAUDE<{folder}>" in log.read_text()  # o claude sempre inicia
+    return r
+
+
+def test_marker_is_written_in_a_safe_state_dir(launcher_env, tmp_path):
+    d = _state_dir(tmp_path)
+    _run_inner_with_marker(launcher_env, tmp_path, d / "started")
+    assert (d / "started").is_file()
+
+
+def test_marker_symlink_to_victim_file_is_not_truncated(launcher_env, tmp_path):
+    d = _state_dir(tmp_path)
+    victim = tmp_path / "vitima.txt"
+    victim.write_text("importante")
+    (d / "started").symlink_to(victim)
+    _run_inner_with_marker(launcher_env, tmp_path, d / "started")
+    assert victim.read_text() == "importante"
+
+
+def test_state_dir_replaced_by_symlink_does_not_touch_victim(launcher_env, tmp_path):
+    victim_dir = tmp_path / "alvo"
+    victim_dir.mkdir()
+    victim_dir.chmod(0o700)
+    victim = victim_dir / "started"
+    victim.write_text("importante")
+    link_parent = tmp_path / "estado"
+    link_parent.mkdir()
+    link = link_parent / "claude-aqui.AbC123"
+    link.symlink_to(victim_dir)  # o diretório foi removido e recriado como symlink
+    _run_inner_with_marker(launcher_env, tmp_path, link / "started")
+    assert victim.read_text() == "importante"
+
+
+def test_state_dir_with_wide_permissions_is_not_used(launcher_env, tmp_path):
+    d = _state_dir(tmp_path, mode=0o777)
+    _run_inner_with_marker(launcher_env, tmp_path, d / "started")
+    assert not (d / "started").exists()
+
+
+def test_marker_outside_a_claude_aqui_state_dir_is_ignored(launcher_env, tmp_path):
+    d = _state_dir(tmp_path, name="qualquer")
+    _run_inner_with_marker(launcher_env, tmp_path, d / "started")
+    assert not (d / "started").exists()
+    _run_inner_with_marker(launcher_env, tmp_path, tmp_path / "estado" / "claude-aqui.AbC123" / "outro")
+
+
+def test_missing_state_dir_does_not_break_claude(launcher_env, tmp_path):
+    _run_inner_with_marker(launcher_env, tmp_path, tmp_path / "sumiu" / "claude-aqui.x" / "started")
+    assert not (tmp_path / "sumiu").exists()
+
+
+def _record_state_env(fakebin, log):
+    write_executable(fakebin / "kitty", f'printf "STATE<%s>\\n" "$CLAUDE_AQUI_STARTED" >> "{log}"\n')
+
+
+def test_state_dir_uses_xdg_runtime_dir_when_available(launcher_env, tmp_path):
+    env, fakebin, log = launcher_env
+    _record_state_env(fakebin, log)
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    runtime.chmod(0o700)
+    tmpd = tmp_path / "tmpd"
+    tmpd.mkdir()
+    folder = tmp_path / "p"
+    folder.mkdir()
+    r = run(env, str(folder), extra_env={"XDG_RUNTIME_DIR": str(runtime), "TMPDIR": str(tmpd)})
+    assert r.returncode == 0, r.stderr
+    assert f"STATE<{runtime}/claude-aqui." in log.read_text()
+    assert list(runtime.iterdir()) == [] and list(tmpd.iterdir()) == []
+
+
+def test_state_dir_falls_back_to_tmpdir_without_xdg_runtime_dir(launcher_env, tmp_path):
+    env, fakebin, log = launcher_env
+    _record_state_env(fakebin, log)
+    tmpd = tmp_path / "tmpd"
+    tmpd.mkdir()
+    folder = tmp_path / "p"
+    folder.mkdir()
+    r = run(env, str(folder), extra_env={"TMPDIR": str(tmpd), "XDG_RUNTIME_DIR": str(tmp_path / "nao-existe")})
+    assert r.returncode == 0, r.stderr
+    assert f"STATE<{tmpd}/claude-aqui." in log.read_text()

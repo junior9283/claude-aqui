@@ -10,7 +10,7 @@ LAUNCHER = ROOT / "bin" / "claude-aqui-launch"
 # Utilitários do sistema que o lançador pode usar. O PATH dos testes contém só
 # estes (via links simbólicos) e o fakebin, para que terminais, notify-send,
 # zenity e claude reais da máquina não interfiram nos resultados.
-SYSTEM_TOOLS = ("sh", "bash", "sed", "awk", "head", "tr", "cat", "dirname", "mkdir", "touch", "sleep", "cut", "grep", "env", "mktemp", "rm", "rmdir")
+SYSTEM_TOOLS = ("sh", "bash", "sed", "awk", "head", "tr", "cat", "dirname", "mkdir", "touch", "sleep", "cut", "grep", "env", "mktemp", "rm", "rmdir", "ls")
 
 
 @pytest.fixture

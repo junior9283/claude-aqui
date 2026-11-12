@@ -5,7 +5,8 @@
 #   claude-aqui-launch --run PASTA      modo interno (dentro do terminal)
 #   claude-aqui-launch --find-claude    imprime o caminho do `claude`
 #   claude-aqui-launch --list-terminals ids dos terminais instalados
-#   claude-aqui-launch --resolve-terminal  id do terminal efetivo
+#   claude-aqui-launch --resolve-terminal [--auto]  id do terminal efetivo
+#                                       (--auto ignora o terminal escolhido)
 #
 # Segurança: o caminho da pasta nunca é interpolado em string de shell nem
 # passado a eval/sh -c; ele só circula entre aspas e como argumento de lista.
@@ -116,9 +117,11 @@ desktop_terminal() {
     return 0
 }
 
+# Terminal efetivo. Com --auto ignora o terminal escolhido na configuração.
 resolve_terminal() {
     all="xdg-terminal-exec x-terminal-emulator $TERMINALS"
-    cfg=$(config_terminal)
+    cfg=
+    [ "${1:-}" = --auto ] || cfg=$(config_terminal)
     if [ -n "$cfg" ] && [ "$cfg" != auto ]; then
         case " $all " in
             *" $cfg "*)
@@ -143,7 +146,12 @@ resolve_terminal() {
 # usuário. Terminais que daemonizam devolvem 0 e um `claude` que sai com erro
 # depois de iniciar não contam como falha do terminal.
 run_terminal() {
-    state=$(mktemp -d "${TMPDIR:-/tmp}/claude-aqui.XXXXXX") || fail "Não foi possível criar um diretório temporário."
+    # Diretório 0700 com nome aleatório: em XDG_RUNTIME_DIR (por usuário) se der, senão em TMPDIR.
+    base=${TMPDIR:-/tmp}
+    if [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -d "$XDG_RUNTIME_DIR" ] && [ -w "$XDG_RUNTIME_DIR" ]; then
+        base=$XDG_RUNTIME_DIR
+    fi
+    state=$(mktemp -d "$base/claude-aqui.XXXXXX") || fail "Não foi possível criar um diretório temporário."
     CLAUDE_AQUI_STARTED=$state/started
     export CLAUDE_AQUI_STARTED
     "$@"
@@ -158,9 +166,27 @@ run_terminal() {
     exit 0
 }
 
+# Cria o marcador "o modo interno iniciou" (CLAUDE_AQUI_STARTED, herdada do
+# ambiente) só se ele estiver num diretório de estado nosso e seguro: nome
+# claude-aqui.*, diretório real (não symlink), do usuário atual e com modo 0700.
+# O arquivo é criado com noclobber (O_EXCL: não segue symlink nem sobrescreve).
+# Qualquer falha é silenciosa: nunca pode impedir o início do claude.
+mark_started() {
+    m=${CLAUDE_AQUI_STARTED:-}
+    [ -n "$m" ] || return 0
+    d=${m%/*}
+    case ${d##*/} in claude-aqui.??*) ;; *) return 0 ;; esac
+    [ "${m##*/}" = started ] || return 0
+    [ -d "$d" ] && [ ! -L "$d" ] && [ -O "$d" ] || return 0
+    mode=$(ls -ld -- "$d" 2>/dev/null) || return 0
+    case $mode in drwx------*) ;; *) return 0 ;; esac
+    ( set -C; : > "$m" ) 2>/dev/null
+    return 0
+}
+
 # Modo interno: roda dentro do terminal.
 run_inside() {
-    [ -n "${CLAUDE_AQUI_STARTED:-}" ] && : > "$CLAUDE_AQUI_STARTED" 2>/dev/null
+    mark_started
     unset CLAUDE_AQUI_STARTED
     pause() { printf '\n%s' "Pressione Enter para fechar..."; IFS= read -r _ || :; exit 1; }
     dir=$(absolute_dir "${1:-$PWD}") || { printf '%s\n' "Selecione uma pasta."; pause; }
@@ -196,7 +222,7 @@ open_terminal() {
 case ${1:-} in
     --find-claude) find_claude ;;
     --list-terminals) list_terminals ;;
-    --resolve-terminal) resolve_terminal ;;
+    --resolve-terminal) resolve_terminal "${2:-}" ;;
     --run) run_inside "${2:-}" ;;
     -*) fail "Opção desconhecida: $1" ;;
     *) open_terminal "${1:-}" ;;
