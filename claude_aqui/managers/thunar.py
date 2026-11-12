@@ -26,6 +26,10 @@ class ThunarManager(FileManager):
     def uca(self) -> Path:
         return self.ctx.config_dir / "Thunar" / "uca.xml"
 
+    @property
+    def backup(self) -> Path:
+        return self.uca.with_name(self.uca.name + BACKUP_SUFFIX)
+
     def entries(self) -> list[Path]:
         return [self.uca]
 
@@ -67,9 +71,8 @@ class ThunarManager(FileManager):
         ]
 
     def _save(self, root: ET.Element) -> None:
-        backup = self.uca.with_name(self.uca.name + BACKUP_SUFFIX)
-        if self.uca.exists() and not backup.exists():
-            shutil.copy2(self.uca, backup)
+        if self.uca.exists() and not self.backup.exists():
+            shutil.copy2(self.uca, self.backup)
         ET.indent(root, space="  ")
         body = ET.tostring(root, encoding="unicode")
         atomic_write(self.uca, f'<?xml version="1.0" encoding="UTF-8"?>\n{body}\n', 0o644)
@@ -107,4 +110,7 @@ class ThunarManager(FileManager):
             return
         for action in ours:
             root.remove(action)
+        if len(root) == 0 and not self.backup.exists():
+            self.uca.unlink()  # só tinha a nossa ação (e nenhum backup de arquivo alheio)
+            return
         self._save(root)

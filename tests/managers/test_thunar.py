@@ -88,6 +88,16 @@ def test_disable_removes_only_ours_and_keeps_user_actions(mgr, uca):
     assert mgr.status() is Status.DISABLED
 
 
+def test_disable_removes_uca_we_created_when_nothing_is_left(mgr, uca):
+    # Bug da Task 10: --remove-all deixava um uca.xml vazio (e um .bak na reativação).
+    mgr.enable()
+    mgr.disable()
+    mgr.enable()
+    mgr.disable()
+    assert not uca.exists()
+    assert not uca.with_name("uca.xml.claude-aqui.bak").exists()
+
+
 def test_disable_without_file_is_noop(mgr, uca):
     mgr.disable()
     assert not uca.exists()

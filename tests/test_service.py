@@ -93,13 +93,13 @@ def test_remove_all_deletes_every_entry_stub_and_config(ctx):
     other.write_text("alheio")
     # binário some depois de ativar: o entry ainda deve ser removido
     (ctx.fakebin / "nemo").unlink()
-    # o uca.xml do Thunar é compartilhado: sobra o arquivo, sem a nossa ação
+    # o uca.xml do Thunar é compartilhado: a nossa ação sai; o arquivo só sobra se tiver ações de terceiros
     entries = [e for m in service.all_managers(ctx) if m.id != "thunar" for e in m.entries()]
     uca = ctx.config_dir / "Thunar" / "uca.xml"
     assert all(e.exists() for e in entries) and "claude-aqui" in uca.read_text()
     service.remove_all(ctx)
     assert not any(e.exists() for e in entries)
-    assert "claude-aqui" not in uca.read_text()
+    assert not uca.exists()  # só tinha a nossa ação: o arquivo some junto
     assert not ctx.stub_path.exists() and not ctx.stub_path.parent.exists()
     assert not (ctx.config_dir / "claude-aqui").exists()
     assert other.read_text() == "alheio"
@@ -121,3 +121,15 @@ def test_remove_all_keeps_unmarked_stub(ctx):
     ctx.stub_path.write_text("alheio")
     service.remove_all(ctx)
     assert ctx.stub_path.read_text() == "alheio"
+
+
+def test_generated_files_are_never_writable_by_group_or_others(ctx):
+    """Segurança: scripts/stub (0755) e configs (0644) só são graváveis pelo dono."""
+    install(ctx, "nautilus", "dolphin", "nemo", "caja", "thunar", "pcmanfm-qt")
+    for m in service.all_managers(ctx):
+        service.set_manager(ctx, m.id, True)
+    service.set_terminal(ctx, "xterm")
+    files = [f for base in (ctx.data_dir, ctx.config_dir) for f in base.rglob("*") if f.is_file()]
+    assert len(files) >= 9
+    for path in files:
+        assert path.stat().st_mode & 0o022 == 0, path
